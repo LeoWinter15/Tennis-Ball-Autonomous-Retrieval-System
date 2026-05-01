@@ -1,0 +1,11 @@
+train: tennis/train/images
+val: tennis/valid/images
+test: tennis/test/images
+nc: 1
+names: ['tennis']
+roboflow:
+  workspace: luke-lin-fmlue
+  project: tennis-axuue
+  version: 1
+  license: CC BY 4.0
+  url: https://universe.roboflow.com/luke-lin-fmlue/tennis-axuue/dataset/1
