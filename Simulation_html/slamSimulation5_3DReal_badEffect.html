@@ -1,0 +1,1190 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SLAM 雷达仿真 - ROS Gazebo RViz 风格</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none;
+        }
+
+        body {
+            background: #0d1117;
+            font-family: 'Segoe UI', 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            color: #c9d1d9;
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        /* 顶部标题栏 */
+        .title-bar {
+            background: #161b22;
+            border-bottom: 1px solid #30363d;
+            padding: 8px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            height: 42px;
+        }
+
+        .title-bar h1 {
+            font-size: 14px;
+            font-weight: 600;
+            color: #58a6ff;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .title-bar .status-indicators {
+            display: flex;
+            gap: 16px;
+            font-size: 12px;
+        }
+
+        .status-indicators .indicator {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .status-indicators .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #238636;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        /* 主布局 */
+        .main-layout {
+            display: flex;
+            height: calc(100vh - 42px - 180px);
+            gap: 2px;
+            background: #0d1117;
+        }
+
+        /* 面板通用样式 */
+        .panel {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .panel-header {
+            background: #21262d;
+            padding: 6px 12px;
+            font-size: 12px;
+            font-weight: 600;
+            color: #8b949e;
+            border-bottom: 1px solid #30363d;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .panel-header .icon {
+            width: 16px;
+            height: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* 左侧 RViz 2D 地图 */
+        .rviz-panel {
+            flex: 1;
+            min-width: 400px;
+        }
+
+        .rviz-canvas-container {
+            flex: 1;
+            position: relative;
+            background: #0d1117;
+        }
+
+        #rvizCanvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        /* 右侧 Gazebo 3D 场景 */
+        .gazebo-panel {
+            flex: 1;
+            min-width: 400px;
+        }
+
+        .gazebo-canvas-container {
+            flex: 1;
+            position: relative;
+            background: #0d1117;
+        }
+
+        #gazeboCanvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        /* 底部区域 */
+        .bottom-area {
+            height: 180px;
+            display: flex;
+            gap: 2px;
+            background: #0d1117;
+            padding: 2px;
+        }
+
+        /* 终端面板 */
+        .terminal-panel {
+            flex: 2;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .terminal-content {
+            flex: 1;
+            background: #0d1117;
+            padding: 8px 12px;
+            font-size: 11px;
+            line-height: 1.6;
+            overflow-y: auto;
+            font-family: 'Monaco', 'Menlo', monospace;
+        }
+
+        .terminal-line {
+            color: #8b949e;
+            margin-bottom: 2px;
+        }
+
+        .terminal-line .timestamp {
+            color: #484f58;
+            margin-right: 8px;
+        }
+
+        .terminal-line .level-info { color: #58a6ff; }
+        .terminal-line .level-warn { color: #d29922; }
+        .terminal-line .level-error { color: #f85149; }
+        .terminal-line .level-success { color: #3fb950; }
+
+        /* 控制面板 */
+        .control-panel {
+            flex: 1;
+            min-width: 280px;
+        }
+
+        .control-content {
+            flex: 1;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            overflow-y: auto;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .control-group label {
+            font-size: 11px;
+            color: #8b949e;
+            font-weight: 600;
+        }
+
+        .control-row {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            background: #21262d;
+            border: 1px solid #30363d;
+            color: #c9d1d9;
+            padding: 5px 12px;
+            border-radius: 4px;
+            font-size: 11px;
+            cursor: pointer;
+            transition: all 0.15s;
+            font-family: inherit;
+        }
+
+        button:hover {
+            background: #30363d;
+            border-color: #58a6ff;
+        }
+
+        button:active {
+            background: #1c2128;
+        }
+
+        button.primary {
+            background: #1f6feb;
+            border-color: #1f6feb;
+            color: white;
+        }
+
+        button.primary:hover {
+            background: #388bfd;
+        }
+
+        button.danger {
+            background: #da3633;
+            border-color: #da3633;
+            color: white;
+        }
+
+        button.danger:hover {
+            background: #f85149;
+        }
+
+        .key-hint {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            background: #21262d;
+            border: 1px solid #30363d;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            color: #8b949e;
+        }
+
+        .key-hint kbd {
+            background: #161b22;
+            border: 1px solid #484f58;
+            border-radius: 3px;
+            padding: 1px 5px;
+            font-size: 10px;
+            color: #c9d1d9;
+            font-family: monospace;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px;
+        }
+
+        .stat-item {
+            background: #0d1117;
+            border: 1px solid #21262d;
+            padding: 6px 10px;
+            border-radius: 4px;
+            font-size: 11px;
+        }
+
+        .stat-item .stat-label {
+            color: #8b949e;
+            font-size: 10px;
+            margin-bottom: 2px;
+        }
+
+        .stat-item .stat-value {
+            color: #58a6ff;
+            font-weight: 600;
+            font-size: 12px;
+        }
+
+        /* 滚动条 */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #0d1117;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #30363d;
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #484f58;
+        }
+
+        /* 提示覆盖层 */
+        .overlay-hint {
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            background: rgba(13, 17, 23, 0.85);
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            padding: 8px 12px;
+            font-size: 11px;
+            color: #8b949e;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .overlay-hint .hint-title {
+            color: #58a6ff;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+    </style>
+</head>
+<body>
+    <!-- 标题栏 -->
+    <div class="title-bar">
+        <h1>🔷 SLAM LiDAR Simulation</h1>
+        <div class="status-indicators">
+            <div class="indicator">
+                <span class="dot"></span>
+                <span>Gazebo Sim</span>
+            </div>
+            <div class="indicator">
+                <span class="dot" style="background: #1f6feb;"></span>
+                <span>RViz Map</span>
+            </div>
+            <div class="indicator">
+                <span class="dot" style="background: #d29922;"></span>
+                <span>ROS Node</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 主视图区 -->
+    <div class="main-layout">
+        <!-- 左侧: RViz 2D 地图 -->
+        <div class="panel rviz-panel">
+            <div class="panel-header">
+                <span class="icon">📊</span>
+                <span>RViz - 2D Occupancy Grid Map</span>
+            </div>
+            <div class="rviz-canvas-container">
+                <canvas id="rvizCanvas"></canvas>
+                <div class="overlay-hint">
+                    <div class="hint-title">RViz View</div>
+                    <div>Fixed Frame: map</div>
+                    <div>Topic: /map</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 右侧: Gazebo 3D 场景 -->
+        <div class="panel gazebo-panel">
+            <div class="panel-header">
+                <span class="icon">🎮</span>
+                <span>Gazebo - 3D Physics Simulation</span>
+            </div>
+            <div class="gazebo-canvas-container">
+                <canvas id="gazeboCanvas"></canvas>
+                <div class="overlay-hint">
+                    <div class="hint-title">Gazebo View</div>
+                    <div>World: slam_tutorial</div>
+                    <div>Physics: ODE</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 底部区域 -->
+    <div class="bottom-area">
+        <!-- 终端日志 -->
+        <div class="panel terminal-panel">
+            <div class="panel-header">
+                <span class="icon">🖥️</span>
+                <span>Terminal - ROS Logs</span>
+            </div>
+            <div class="terminal-content" id="terminalContent">
+                <!-- 日志行由 JS 动态生成 -->
+            </div>
+        </div>
+
+        <!-- 控制面板 -->
+        <div class="panel control-panel">
+            <div class="panel-header">
+                <span class="icon">🎛️</span>
+                <span>Control Panel</span>
+            </div>
+            <div class="control-content">
+                <div class="control-group">
+                    <label>🚀 机器人控制</label>
+                    <div class="control-row">
+                        <span class="key-hint"><kbd>W</kbd> 前进</span>
+                        <span class="key-hint"><kbd>S</kbd> 后退</span>
+                        <span class="key-hint"><kbd>A</kbd> 左转</span>
+                        <span class="key-hint"><kbd>D</kbd> 右转</span>
+                    </div>
+                    <div class="control-row" style="margin-top:4px;">
+                        <span class="key-hint"><kbd>Q</kbd> 左旋</span>
+                        <span class="key-hint"><kbd>E</kbd> 右旋</span>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <label>🖱️ 交互操作</label>
+                    <div class="control-row">
+                        <button id="addObstacleBtn">➕ 添加障碍物</button>
+                        <button id="clearMapBtn" class="danger">🗑️ 清空地图</button>
+                    </div>
+                    <div style="font-size:10px;color:#484f58;margin-top:4px;">
+                        点击 Gazebo 视图添加圆柱障碍物
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <label>📊 实时状态</label>
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <div class="stat-label">位置 X</div>
+                            <div class="stat-value" id="statX">0.00</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">位置 Y</div>
+                            <div class="stat-value" id="statY">0.00</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">朝向 θ</div>
+                            <div class="stat-value" id="statTheta">0°</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">线速度</div>
+                            <div class="stat-value" id="statVel">0.00</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<script>
+(function() {
+    // ==================== 配置 ====================
+    const CONFIG = {
+        worldWidth: 900,
+        worldHeight: 700,
+        gridSize: 10,
+        lidarRange: 300,
+        lidarResolution: 360, // 1度一个射线
+        robotRadius: 12,
+        moveSpeed: 2.0,
+        rotSpeed: 0.04,
+        colors: {
+            free: 'rgba(200, 220, 240, 0.15)',
+            occupied: 'rgba(60, 60, 80, 0.9)',
+            unknown: 'rgba(30, 35, 40, 0.3)',
+            scanPoint: '#00d4aa',
+            scanLine: 'rgba(0, 212, 170, 0.15)',
+            robot: '#58a6ff',
+            robotDir: '#ffd700',
+            wall: '#ff9248',
+            cylinder: '#ff6b6b',
+            floor: '#1a1f2e',
+            floorGrid: '#252b3d'
+        }
+    };
+
+    // ==================== 状态 ====================
+    const state = {
+        robot: { x: 450, y: 350, theta: 0, vx: 0, vy: 0, omega: 0 },
+        keys: {},
+        obstacles: {
+            walls: [],
+            cylinders: []
+        },
+        grid: [],
+        scanData: [],
+        terminalLines: [],
+        frameCount: 0,
+        isAddingObstacle: false
+    };
+
+    // ==================== Canvas 设置 ====================
+    const rvizCanvas = document.getElementById('rvizCanvas');
+    const rvizCtx = rvizCanvas.getContext('2d');
+    const gazeboCanvas = document.getElementById('gazeboCanvas');
+    const gazeboCtx = gazeboCanvas.getContext('2d');
+
+    function resizeCanvases() {
+        const rvizContainer = rvizCanvas.parentElement;
+        const gazeboContainer = gazeboCanvas.parentElement;
+        rvizCanvas.width = rvizContainer.clientWidth;
+        rvizCanvas.height = rvizContainer.clientHeight;
+        gazeboCanvas.width = gazeboContainer.clientWidth;
+        gazeboCanvas.height = gazeboContainer.clientHeight;
+    }
+    resizeCanvases();
+    window.addEventListener('resize', resizeCanvases);
+
+    // ==================== 初始化环境 ====================
+    const GW = Math.ceil(CONFIG.worldWidth / CONFIG.gridSize);
+    const GH = Math.ceil(CONFIG.worldHeight / CONFIG.gridSize);
+
+    function initGrid() {
+        state.grid = new Array(GW * GH).fill(0.5);
+    }
+
+    function initEnvironment() {
+        state.obstacles.walls = [];
+        state.obstacles.cylinders = [];
+        initGrid();
+
+        // 边界墙
+        const margin = 40;
+        state.obstacles.walls.push(
+            {x1: margin, y1: margin, x2: CONFIG.worldWidth-margin, y2: margin},
+            {x1: CONFIG.worldWidth-margin, y1: margin, x2: CONFIG.worldWidth-margin, y2: CONFIG.worldHeight-margin},
+            {x1: CONFIG.worldWidth-margin, y1: CONFIG.worldHeight-margin, x2: margin, y2: CONFIG.worldHeight-margin},
+            {x1: margin, y1: CONFIG.worldHeight-margin, x2: margin, y2: margin}
+        );
+
+        // 内部墙壁 (类似视频中的房间结构)
+        state.obstacles.walls.push(
+            /*
+            // 中央隔断
+            {x1: 350, y1: 250, x2: 550, y2: 250},
+            {x1: 550, y1: 250, x2: 550, y2: 450},
+            {x1: 550, y1: 450, x2: 350, y2: 450},
+            {x1: 350, y1: 450, x2: 350, y2: 250},
+            */
+            // 左侧房间分隔
+            {x1: 150, y1: 150, x2: 150, y2: 300},
+            {x1: 150, y1: 300, x2: 250, y2: 300},
+            // 右侧通道
+            {x1: 700, y1: 200, x2: 800, y2: 200},
+            {x1: 800, y1: 200, x2: 800, y2: 500}
+        );
+
+        // 圆柱障碍物 (视频中有很多圆柱)
+        state.obstacles.cylinders.push(
+            {cx: 200, cy: 500, r: 25, h: 80},
+            {cx: 280, cy: 550, r: 20, h: 60},
+            {cx: 650, cy: 180, r: 30, h: 100},
+            {cx: 750, cy: 350, r: 22, h: 70},
+            {cx: 680, cy: 580, r: 28, h: 90},
+            {cx: 450, cy: 120, r: 18, h: 50},
+            {cx: 120, cy: 200, r: 20, h: 60},
+            {cx: 820, cy: 450, r: 24, h: 80}
+        );
+    }
+
+    // ==================== 几何工具 ====================
+    function raySegmentIntersect(px, py, dx, dy, x1, y1, x2, y2) {
+        const rdx = dx, rdy = dy;
+        const sdx = x2 - x1, sdy = y2 - y1;
+        const denom = rdx * sdy - rdy * sdx;
+        if (Math.abs(denom) < 1e-10) return null;
+        const t = ((x1 - px) * sdy - (y1 - py) * sdx) / denom;
+        const u = ((x1 - px) * rdy - (y1 - py) * rdx) / denom;
+        if (t >= 0 && u >= 0 && u <= 1) {
+            return t * Math.hypot(rdx, rdy);
+        }
+        return null;
+    }
+
+    function rayCircleIntersect(px, py, dx, dy, cx, cy, r) {
+        const ocX = px - cx, ocY = py - cy;
+        const a = dx*dx + dy*dy;
+        const b = 2 * (ocX*dx + ocY*dy);
+        const c = ocX*ocX + ocY*ocY - r*r;
+        const disc = b*b - 4*a*c;
+        if (disc < 0) return null;
+        const sqrtD = Math.sqrt(disc);
+        const t1 = (-b - sqrtD) / (2*a);
+        const t2 = (-b + sqrtD) / (2*a);
+        let t = null;
+        if (t1 >= 0) t = t1;
+        if (t2 >= 0 && (t === null || t2 < t)) t = t2;
+        return t !== null ? t * Math.hypot(dx, dy) : null;
+    }
+
+    // ==================== LiDAR 扫描 ====================
+    function performScan() {
+        const ranges = [];
+        const angleStep = (Math.PI * 2) / CONFIG.lidarResolution;
+
+        for (let i = 0; i < CONFIG.lidarResolution; i++) {
+            const angle = state.robot.theta + i * angleStep;
+            const dirX = Math.cos(angle);
+            const dirY = Math.sin(angle);
+            let minDist = CONFIG.lidarRange;
+
+            // 检查墙壁
+            for (const wall of state.obstacles.walls) {
+                const d = raySegmentIntersect(state.robot.x, state.robot.y, dirX, dirY, 
+                    wall.x1, wall.y1, wall.x2, wall.y2);
+                if (d !== null && d < minDist) minDist = d;
+            }
+
+            // 检查圆柱
+            for (const cyl of state.obstacles.cylinders) {
+                const d = rayCircleIntersect(state.robot.x, state.robot.y, dirX, dirY,
+                    cyl.cx, cyl.cy, cyl.r);
+                if (d !== null && d < minDist) minDist = d;
+            }
+
+            ranges.push(minDist);
+        }
+        state.scanData = ranges;
+        return ranges;
+    }
+
+    // ==================== 占据栅格更新 ====================
+    function updateOccupancyGrid(ranges) {
+        const angleStep = (Math.PI * 2) / CONFIG.lidarResolution;
+        const robotGX = Math.floor(state.robot.x / CONFIG.gridSize);
+        const robotGY = Math.floor(state.robot.y / CONFIG.gridSize);
+
+        for (let i = 0; i < CONFIG.lidarResolution; i++) {
+            const range = ranges[i];
+            if (range >= CONFIG.lidarRange - 1) continue;
+
+            const angle = state.robot.theta + i * angleStep;
+            const endX = state.robot.x + Math.cos(angle) * range;
+            const endY = state.robot.y + Math.sin(angle) * range;
+
+            // Bresenham 划线更新自由空间
+            let x0 = Math.floor(state.robot.x / CONFIG.gridSize);
+            let y0 = Math.floor(state.robot.y / CONFIG.gridSize);
+            const x1 = Math.floor(endX / CONFIG.gridSize);
+            const y1 = Math.floor(endY / CONFIG.gridSize);
+
+            const dx = Math.abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
+            const dy = Math.abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
+            let err = dx - dy;
+
+            while (true) {
+                const idx = y0 * GW + x0;
+                if (idx >= 0 && idx < state.grid.length && !(x0 === x1 && y0 === y1)) {
+                    state.grid[idx] = Math.max(0.05, state.grid[idx] - 0.06);
+                }
+                if (x0 === x1 && y0 === y1) break;
+                const e2 = 2 * err;
+                if (e2 > -dy) { err -= dy; x0 += sx; }
+                if (e2 < dx) { err += dx; y0 += sy; }
+            }
+
+            // 终点更新占据
+            const endIdx = y1 * GW + x1;
+            if (endIdx >= 0 && endIdx < state.grid.length) {
+                state.grid[endIdx] = Math.min(0.95, state.grid[endIdx] + 0.15);
+            }
+        }
+    }
+
+    // ==================== 机器人控制 ====================
+    function updateRobot() {
+        let forward = 0, strafe = 0, rotate = 0;
+
+        if (state.keys['w'] || state.keys['arrowup']) forward = CONFIG.moveSpeed;
+        if (state.keys['s'] || state.keys['arrowdown']) forward = -CONFIG.moveSpeed;
+        if (state.keys['a'] || state.keys['arrowleft']) strafe = -CONFIG.moveSpeed * 0.6;
+        if (state.keys['d'] || state.keys['arrowright']) strafe = CONFIG.moveSpeed * 0.6;
+        if (state.keys['q']) rotate = -CONFIG.rotSpeed;
+        if (state.keys['e']) rotate = CONFIG.rotSpeed;
+
+        state.robot.theta += rotate;
+
+        const newX = state.robot.x + forward * Math.cos(state.robot.theta) + strafe * Math.sin(state.robot.theta);
+        const newY = state.robot.y + forward * Math.sin(state.robot.theta) - strafe * Math.cos(state.robot.theta);
+
+        // 碰撞检测
+        const margin = 40;
+        let collision = false;
+
+        if (newX < margin + CONFIG.robotRadius || newX > CONFIG.worldWidth - margin - CONFIG.robotRadius ||
+            newY < margin + CONFIG.robotRadius || newY > CONFIG.worldHeight - margin - CONFIG.robotRadius) {
+            collision = true;
+        }
+
+        for (const cyl of state.obstacles.cylinders) {
+            const dist = Math.hypot(newX - cyl.cx, newY - cyl.cy);
+            if (dist < cyl.r + CONFIG.robotRadius) { collision = true; break; }
+        }
+
+        for (const wall of state.obstacles.walls) {
+            // 点到线段距离
+            const ax = wall.x1, ay = wall.y1, bx = wall.x2, by = wall.y2;
+            const abx = bx - ax, aby = by - ay;
+            const t = Math.max(0, Math.min(1, ((newX - ax)*abx + (newY - ay)*aby) / (abx*abx + aby*aby || 1)));
+            const closestX = ax + t * abx, closestY = ay + t * aby;
+            if (Math.hypot(newX - closestX, newY - closestY) < CONFIG.robotRadius + 3) {
+                collision = true; break;
+            }
+        }
+
+        if (!collision) {
+            state.robot.x = newX;
+            state.robot.y = newY;
+        }
+
+        state.robot.vx = forward * Math.cos(state.robot.theta);
+        state.robot.vy = forward * Math.sin(state.robot.theta);
+        state.robot.omega = rotate;
+    }
+
+    // ==================== 绘制 RViz (2D 地图) ====================
+    function drawRViz() {
+        const ctx = rvizCtx;
+        const w = rvizCanvas.width;
+        const h = rvizCanvas.height;
+        const scaleX = w / CONFIG.worldWidth;
+        const scaleY = h / CONFIG.worldHeight;
+        const scale = Math.min(scaleX, scaleY);
+        const offsetX = (w - CONFIG.worldWidth * scale) / 2;
+        const offsetY = (h - CONFIG.worldHeight * scale) / 2;
+
+        ctx.fillStyle = '#0d1117';
+        ctx.fillRect(0, 0, w, h);
+
+        ctx.save();
+        ctx.translate(offsetX, offsetY);
+        ctx.scale(scale, scale);
+
+        // 绘制栅格地图
+        for (let gy = 0; gy < GH; gy++) {
+            for (let gx = 0; gx < GW; gx++) {
+                const idx = gy * GW + gx;
+                const prob = state.grid[idx];
+                let color;
+                if (prob > 0.65) color = CONFIG.colors.occupied;
+                else if (prob < 0.35) color = CONFIG.colors.free;
+                else color = CONFIG.colors.unknown;
+                ctx.fillStyle = color;
+                ctx.fillRect(gx * CONFIG.gridSize, gy * CONFIG.gridSize, CONFIG.gridSize, CONFIG.gridSize);
+            }
+        }
+
+        // 绘制真实障碍物轮廓 (半透明)
+        ctx.strokeStyle = 'rgba(255, 146, 72, 0.3)';
+        ctx.lineWidth = 1;
+        for (const wall of state.obstacles.walls) {
+            ctx.beginPath();
+            ctx.moveTo(wall.x1, wall.y1);
+            ctx.lineTo(wall.x2, wall.y2);
+            ctx.stroke();
+        }
+        for (const cyl of state.obstacles.cylinders) {
+            ctx.beginPath();
+            ctx.arc(cyl.cx, cyl.cy, cyl.r, 0, Math.PI*2);
+            ctx.stroke();
+        }
+
+        // 绘制雷达扫描点
+        const angleStep = (Math.PI * 2) / CONFIG.lidarResolution;
+        for (let i = 0; i < CONFIG.lidarResolution; i++) {
+            const range = state.scanData[i];
+            if (range < CONFIG.lidarRange - 1) {
+                const angle = state.robot.theta + i * angleStep;
+                const px = state.robot.x + Math.cos(angle) * range;
+                const py = state.robot.y + Math.sin(angle) * range;
+                ctx.fillStyle = CONFIG.colors.scanPoint;
+                ctx.fillRect(px - 1.5, py - 1.5, 3, 3);
+            }
+        }
+
+        // 绘制机器人
+        ctx.beginPath();
+        ctx.arc(state.robot.x, state.robot.y, CONFIG.robotRadius, 0, Math.PI*2);
+        ctx.fillStyle = CONFIG.colors.robot;
+        ctx.fill();
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // 方向指示
+        ctx.beginPath();
+        ctx.moveTo(state.robot.x, state.robot.y);
+        ctx.lineTo(
+            state.robot.x + Math.cos(state.robot.theta) * 20,
+            state.robot.y + Math.sin(state.robot.theta) * 20
+        );
+        ctx.strokeStyle = CONFIG.colors.robotDir;
+        ctx.lineWidth = 2.5;
+        ctx.stroke();
+
+        ctx.restore();
+    }
+
+    // ==================== 绘制 Gazebo (3D 透视) ====================
+    function drawGazebo() {
+        const ctx = gazeboCtx;
+        const w = gazeboCanvas.width;
+        const h = gazeboCanvas.height;
+
+        // 背景 - 天空/地面渐变
+        const grad = ctx.createLinearGradient(0, 0, 0, h);
+        grad.addColorStop(0, '#1a1f2e');
+        grad.addColorStop(0.5, '#252b3d');
+        grad.addColorStop(1, '#1a1f2e');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, w, h);
+
+        // 3D 透视参数
+        const fov = 600;
+        const cameraHeight = 180;
+        const cameraDist = 350;
+        const cameraAngle = state.robot.theta + Math.PI / 6; // 跟随机器人
+
+        function project3D(x, y, z) {
+            // 将世界坐标转换为相机相对坐标
+            const dx = x - state.robot.x;
+            const dy = y - state.robot.y;
+
+            // 绕 Y 轴旋转 (相机角度)
+            const cosA = Math.cos(cameraAngle);
+            const sinA = Math.sin(cameraAngle);
+            const rx = dx * cosA + dy * sinA;
+            const ry = -dx * sinA + dy * cosA;
+            const rz = z - cameraHeight;
+
+            // 透视投影
+            if (rx <= 0) return null; // 在相机后面
+            const scale = fov / rx;
+            const px = w/2 + ry * scale;
+            const py = h/2 - rz * scale;
+            return { x: px, y: py, scale: scale, depth: rx };
+        }
+
+        // 收集所有可绘制对象并按深度排序
+        const drawList = [];
+
+        // 地面网格
+        const gridSpacing = 50;
+        for (let x = 0; x <= CONFIG.worldWidth; x += gridSpacing) {
+            for (let z = 0; z <= CONFIG.worldHeight; z += gridSpacing) {
+                const p = project3D(x, z, 0);
+                if (p) {
+                    drawList.push({ type: 'ground_dot', ...p, worldX: x, worldZ: z });
+                }
+            }
+        }
+
+        // 墙壁
+        for (const wall of state.obstacles.walls) {
+            const p1 = project3D(wall.x1, wall.y1, 0);
+            const p2 = project3D(wall.x2, wall.y2, 0);
+            const p3 = project3D(wall.x2, wall.y2, 100);
+            const p4 = project3D(wall.x1, wall.y1, 100);
+            if (p1 && p2 && p3 && p4) {
+                const avgDepth = (p1.depth + p2.depth + p3.depth + p4.depth) / 4;
+                drawList.push({ type: 'wall', depth: avgDepth, p1, p2, p3, p4 });
+            }
+        }
+
+        // 圆柱
+        for (const cyl of state.obstacles.cylinders) {
+            const base = project3D(cyl.cx, cyl.cy, 0);
+            const top = project3D(cyl.cx, cyl.cy, cyl.h);
+            if (base && top) {
+                const rScale = base.scale * cyl.r;
+                drawList.push({ 
+                    type: 'cylinder', 
+                    depth: base.depth, 
+                    base, top, 
+                    radius: rScale,
+                    height: cyl.h,
+                    color: CONFIG.colors.cylinder
+                });
+            }
+        }
+
+        // 机器人
+        const robotBase = project3D(state.robot.x, state.robot.y, 0);
+        const robotTop = project3D(state.robot.x, state.robot.y, 25);
+        if (robotBase && robotTop) {
+            drawList.push({
+                type: 'robot',
+                depth: robotBase.depth,
+                base: robotBase,
+                top: robotTop,
+                radius: robotBase.scale * CONFIG.robotRadius,
+                theta: state.robot.theta
+            });
+        }
+
+        // 雷达扫描线 (3D)
+        const angleStep = (Math.PI * 2) / CONFIG.lidarResolution;
+        for (let i = 0; i < CONFIG.lidarResolution; i += 2) {
+            const range = state.scanData[i];
+            if (range < CONFIG.lidarRange - 1) {
+                const angle = state.robot.theta + i * angleStep;
+                const ex = state.robot.x + Math.cos(angle) * range;
+                const ey = state.robot.y + Math.sin(angle) * range;
+                const pStart = project3D(state.robot.x, state.robot.y, 20);
+                const pEnd = project3D(ex, ey, 20);
+                if (pStart && pEnd) {
+                    drawList.push({
+                        type: 'scan_ray',
+                        depth: pEnd.depth,
+                        pStart, pEnd,
+                        alpha: 0.3 + 0.7 * (1 - range / CONFIG.lidarRange)
+                    });
+                }
+            }
+        }
+
+        // 按深度排序 (远到近)
+        drawList.sort((a, b) => b.depth - a.depth);
+
+        // 绘制
+        for (const item of drawList) {
+            switch (item.type) {
+                case 'ground_dot':
+                    ctx.fillStyle = CONFIG.colors.floorGrid;
+                    const size = Math.max(1, item.scale * 1.5);
+                    ctx.fillRect(item.x - size/2, item.y - size/2, size, size);
+                    break;
+
+                case 'wall':
+                    ctx.fillStyle = 'rgba(255, 146, 72, 0.85)';
+                    ctx.strokeStyle = '#ff9248';
+                    ctx.lineWidth = 1;
+                    ctx.beginPath();
+                    ctx.moveTo(item.p1.x, item.p1.y);
+                    ctx.lineTo(item.p2.x, item.p2.y);
+                    ctx.lineTo(item.p3.x, item.p3.y);
+                    ctx.lineTo(item.p4.x, item.p4.y);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.stroke();
+                    // 顶部边缘高光
+                    ctx.strokeStyle = 'rgba(255, 200, 150, 0.5)';
+                    ctx.beginPath();
+                    ctx.moveTo(item.p4.x, item.p4.y);
+                    ctx.lineTo(item.p3.x, item.p3.y);
+                    ctx.stroke();
+                    break;
+
+                case 'cylinder':
+                    // 圆柱体 - 简化为梯形
+                    const br = item.radius;
+                    const tr = item.top.scale * (item.base.radius / item.base.scale);
+
+                    ctx.fillStyle = item.color + 'cc';
+                    ctx.strokeStyle = item.color;
+                    ctx.lineWidth = 1;
+                    ctx.beginPath();
+                    ctx.ellipse(item.base.x, item.base.y, br, br * 0.3, 0, 0, Math.PI*2);
+                    ctx.fill();
+                    ctx.stroke();
+
+                    ctx.fillStyle = item.color + '99';
+                    ctx.beginPath();
+                    ctx.moveTo(item.base.x - br, item.base.y);
+                    ctx.lineTo(item.base.x + br, item.base.y);
+                    ctx.lineTo(item.top.x + tr, item.top.y);
+                    ctx.lineTo(item.top.x - tr, item.top.y);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.stroke();
+
+                    ctx.fillStyle = item.color + 'dd';
+                    ctx.beginPath();
+                    ctx.ellipse(item.top.x, item.top.y, tr, tr * 0.3, 0, 0, Math.PI*2);
+                    ctx.fill();
+                    ctx.stroke();
+                    break;
+
+                case 'robot':
+                    // 机器人底盘
+                    ctx.fillStyle = CONFIG.colors.robot + 'cc';
+                    ctx.strokeStyle = '#fff';
+                    ctx.lineWidth = 1.5;
+                    ctx.beginPath();
+                    ctx.ellipse(item.base.x, item.base.y, item.radius, item.radius * 0.3, 0, 0, Math.PI*2);
+                    ctx.fill();
+                    ctx.stroke();
+
+                    // 机器人身体
+                    ctx.fillStyle = CONFIG.colors.robot + '99';
+                    ctx.beginPath();
+                    ctx.moveTo(item.base.x - item.radius, item.base.y);
+                    ctx.lineTo(item.base.x + item.radius, item.base.y);
+                    ctx.lineTo(item.top.x + item.radius * 0.8, item.top.y);
+                    ctx.lineTo(item.top.x - item.radius * 0.8, item.top.y);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.stroke();
+
+                    // 顶部雷达
+                    ctx.fillStyle = '#00d4aa';
+                    ctx.beginPath();
+                    ctx.ellipse(item.top.x, item.top.y, item.radius * 0.8, item.radius * 0.25, 0, 0, Math.PI*2);
+                    ctx.fill();
+                    ctx.strokeStyle = '#00d4aa';
+                    ctx.stroke();
+
+                    // 方向指示
+                    const dirLen = item.radius * 1.5;
+                    const dirX = Math.cos(item.theta - cameraAngle) * dirLen;
+                    const dirY = -Math.sin(item.theta - cameraAngle) * dirLen * 0.3;
+                    ctx.beginPath();
+                    ctx.moveTo(item.top.x, item.top.y);
+                    ctx.lineTo(item.top.x + dirX, item.top.y + dirY);
+                    ctx.strokeStyle = '#ffd700';
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                    break;
+
+                case 'scan_ray':
+                    ctx.strokeStyle = `rgba(0, 212, 170, ${item.alpha * 0.4})`;
+                    ctx.lineWidth = 0.5;
+                    ctx.beginPath();
+                    ctx.moveTo(item.pStart.x, item.pStart.y);
+                    ctx.lineTo(item.pEnd.x, item.pEnd.y);
+                    ctx.stroke();
+
+                    // 扫描点
+                    ctx.fillStyle = `rgba(0, 212, 170, ${item.alpha})`;
+                    ctx.beginPath();
+                    ctx.arc(item.pEnd.x, item.pEnd.y, 2 * item.pEnd.scale, 0, Math.PI*2);
+                    ctx.fill();
+                    break;
+            }
+        }
+    }
+
+    // ==================== 终端日志 ====================
+    function addLog(message, level = 'info') {
+        const now = new Date();
+        const time = now.toTimeString().split(' ')[0];
+        const line = document.createElement('div');
+        line.className = 'terminal-line';
+        const levelClass = `level-${level}`;
+        line.innerHTML = `<span class="timestamp">[${time}]</span> <span class="${levelClass}">${message}</span>`;
+        document.getElementById('terminalContent').appendChild(line);
+
+        state.terminalLines.push({ time, message, level });
+        if (state.terminalLines.length > 100) {
+            state.terminalLines.shift();
+            document.getElementById('terminalContent').removeChild(
+                document.getElementById('terminalContent').firstChild
+            );
+        }
+
+        const term = document.getElementById('terminalContent');
+        term.scrollTop = term.scrollHeight;
+    }
+
+    function updateStats() {
+        document.getElementById('statX').textContent = state.robot.x.toFixed(1);
+        document.getElementById('statY').textContent = state.robot.y.toFixed(1);
+        document.getElementById('statTheta').textContent = (state.robot.theta * 180 / Math.PI % 360).toFixed(0) + '°';
+        const speed = Math.hypot(state.robot.vx, state.robot.vy);
+        document.getElementById('statVel').textContent = speed.toFixed(2);
+    }
+
+    // ==================== 事件处理 ====================
+    window.addEventListener('keydown', (e) => {
+        state.keys[e.key.toLowerCase()] = true;
+        if (['w','a','s','d','q','e','arrowup','arrowdown','arrowleft','arrowright'].includes(e.key.toLowerCase())) {
+            e.preventDefault();
+        }
+    });
+
+    window.addEventListener('keyup', (e) => {
+        state.keys[e.key.toLowerCase()] = false;
+    });
+
+    // Gazebo 点击添加障碍物
+    gazeboCanvas.addEventListener('click', (e) => {
+        if (!state.isAddingObstacle) return;
+        const rect = gazeboCanvas.getBoundingClientRect();
+        const scaleX = CONFIG.worldWidth / rect.width;
+        const scaleY = CONFIG.worldHeight / rect.height;
+
+        // 简化的逆投影 - 近似世界坐标
+        const mx = (e.clientX - rect.left) * scaleX;
+        const my = (e.clientY - rect.top) * scaleY;
+
+        state.obstacles.cylinders.push({
+            cx: Math.max(60, Math.min(CONFIG.worldWidth - 60, mx)),
+            cy: Math.max(60, Math.min(CONFIG.worldHeight - 60, my)),
+            r: 20 + Math.random() * 15,
+            h: 60 + Math.random() * 40
+        });
+
+        addLog(`Added cylinder obstacle at (${mx.toFixed(0)}, ${my.toFixed(0)})`, 'success');
+        state.isAddingObstacle = false;
+        document.getElementById('addObstacleBtn').textContent = '➕ 添加障碍物';
+        document.getElementById('addObstacleBtn').style.background = '';
+    });
+
+    document.getElementById('addObstacleBtn').addEventListener('click', () => {
+        state.isAddingObstacle = !state.isAddingObstacle;
+        const btn = document.getElementById('addObstacleBtn');
+        if (state.isAddingObstacle) {
+            btn.textContent = '👆 点击 Gazebo 放置';
+            btn.style.background = '#1f6feb';
+            addLog('Click on Gazebo view to place obstacle', 'warn');
+        } else {
+            btn.textContent = '➕ 添加障碍物';
+            btn.style.background = '';
+        }
+    });
+
+    document.getElementById('clearMapBtn').addEventListener('click', () => {
+        initEnvironment();
+        addLog('Map cleared and reset', 'warn');
+    });
+
+    // ==================== 主循环 ====================
+    let lastLogTime = 0;
+
+    function loop(timestamp) {
+        state.frameCount++;
+
+        updateRobot();
+        const ranges = performScan();
+        updateOccupancyGrid(ranges);
+
+        drawRViz();
+        drawGazebo();
+        updateStats();
+
+        // 定期添加日志
+        if (timestamp - lastLogTime > 2000) {
+            const msgs = [
+                { text: `Scan processed: ${CONFIG.lidarResolution} rays`, level: 'info' },
+                { text: `Robot pose: [${state.robot.x.toFixed(1)}, ${state.robot.y.toFixed(1)}, ${(state.robot.theta*180/Math.PI).toFixed(1)}]`, level: 'info' },
+                { text: `Grid cells updated: ${state.grid.filter(p => p !== 0.5).length}`, level: 'success' },
+                { text: `Linear velocity: ${Math.hypot(state.robot.vx, state.robot.vy).toFixed(2)} m/s`, level: 'info' },
+                { text: 'Publishing /tf transform...', level: 'info' },
+                { text: 'Map server: receiving updates', level: 'success' }
+            ];
+            const msg = msgs[Math.floor(Math.random() * msgs.length)];
+            addLog(msg.text, msg.level);
+            lastLogTime = timestamp;
+        }
+
+        requestAnimationFrame(loop);
+    }
+
+    // ==================== 初始化 ====================
+    initEnvironment();
+
+    // 初始日志
+    addLog('ROS Master initialized', 'success');
+    addLog('Gazebo simulator started', 'success');
+    addLog('RViz connected to /map topic', 'success');
+    addLog('LiDAR node: /scan topic active', 'info');
+    addLog('Robot model loaded: differential_drive', 'info');
+    addLog('Use WASD to move, Q/E to rotate', 'warn');
+
+    requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

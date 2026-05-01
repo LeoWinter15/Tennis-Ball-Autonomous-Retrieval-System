@@ -1,0 +1,1869 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SLAM 雷达仿真 - 感知驱动网球收集</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none;
+        }
+
+        body {
+            background: #0d1117;
+            font-family: 'Segoe UI', 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            color: #c9d1d9;
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        .title-bar {
+            background: #161b22;
+            border-bottom: 1px solid #30363d;
+            padding: 8px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            height: 42px;
+        }
+
+        .title-bar h1 {
+            font-size: 14px;
+            font-weight: 600;
+            color: #58a6ff;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .title-bar .status-indicators {
+            display: flex;
+            gap: 16px;
+            font-size: 12px;
+        }
+
+        .status-indicators .indicator {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .status-indicators .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #238636;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        .main-layout {
+            display: flex;
+            height: calc(100vh - 42px - 180px);
+            gap: 2px;
+            background: #0d1117;
+        }
+
+        .panel {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .panel-header {
+            background: #21262d;
+            padding: 6px 12px;
+            font-size: 12px;
+            font-weight: 600;
+            color: #8b949e;
+            border-bottom: 1px solid #30363d;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .panel-header .icon {
+            width: 16px;
+            height: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .rviz-panel { flex: 1; min-width: 400px; }
+        .rviz-canvas-container {
+            flex: 1;
+            position: relative;
+            background: #0d1117;
+        }
+        #rvizCanvas { width: 100%; height: 100%; display: block; }
+
+        .gazebo-panel { flex: 1; min-width: 400px; }
+        .gazebo-canvas-container {
+            flex: 1;
+            position: relative;
+            background: #0d1117;
+        }
+        #gazeboCanvas { width: 100%; height: 100%; display: block; }
+
+        .bottom-area {
+            height: 180px;
+            display: flex;
+            gap: 2px;
+            background: #0d1117;
+            padding: 2px;
+        }
+
+        .terminal-panel { flex: 2; display: flex; flex-direction: column; }
+        .terminal-content {
+            flex: 1;
+            background: #0d1117;
+            padding: 8px 12px;
+            font-size: 11px;
+            line-height: 1.6;
+            overflow-y: auto;
+            font-family: 'Monaco', 'Menlo', monospace;
+        }
+        .terminal-line { color: #8b949e; margin-bottom: 2px; }
+        .terminal-line .timestamp { color: #484f58; margin-right: 8px; }
+        .terminal-line .level-info { color: #58a6ff; }
+        .terminal-line .level-warn { color: #d29922; }
+        .terminal-line .level-error { color: #f85149; }
+        .terminal-line .level-success { color: #3fb950; }
+
+        .control-panel { flex: 1; min-width: 280px; }
+        .control-content {
+            flex: 1;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            overflow-y: auto;
+        }
+        .control-group { display: flex; flex-direction: column; gap: 6px; }
+        .control-group label { font-size: 11px; color: #8b949e; font-weight: 600; }
+        .control-row { display: flex; gap: 8px; flex-wrap: wrap; }
+
+        button {
+            background: #21262d;
+            border: 1px solid #30363d;
+            color: #c9d1d9;
+            padding: 5px 12px;
+            border-radius: 4px;
+            font-size: 11px;
+            cursor: pointer;
+            transition: all 0.15s;
+            font-family: inherit;
+        }
+        button:hover { background: #30363d; border-color: #58a6ff; }
+        button:active { background: #1c2128; }
+        button.primary { background: #1f6feb; border-color: #1f6feb; color: white; }
+        button.primary:hover { background: #388bfd; }
+        button.danger { background: #da3633; border-color: #da3633; color: white; }
+        button.danger:hover { background: #f85149; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        button.active-mode { background: #d29922; border-color: #d29922; color: #0d1117; font-weight: 600; }
+
+        .key-hint {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            background: #21262d;
+            border: 1px solid #30363d;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            color: #8b949e;
+        }
+        .key-hint kbd {
+            background: #161b22;
+            border: 1px solid #484f58;
+            border-radius: 3px;
+            padding: 1px 5px;
+            font-size: 10px;
+            color: #c9d1d9;
+            font-family: monospace;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px;
+        }
+        .stat-item {
+            background: #0d1117;
+            border: 1px solid #21262d;
+            padding: 6px 10px;
+            border-radius: 4px;
+            font-size: 11px;
+        }
+        .stat-item .stat-label { color: #8b949e; font-size: 10px; margin-bottom: 2px; }
+        .stat-item .stat-value { color: #58a6ff; font-weight: 600; font-size: 12px; }
+
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #0d1117; }
+        ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #484f58; }
+
+        .overlay-hint {
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            background: rgba(13, 17, 23, 0.85);
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            padding: 8px 12px;
+            font-size: 11px;
+            color: #8b949e;
+            pointer-events: none;
+            z-index: 10;
+        }
+        .overlay-hint .hint-title { color: #58a6ff; font-weight: 600; margin-bottom: 4px; }
+
+        .cursor-crosshair { cursor: crosshair !important; }
+    </style>
+</head>
+<body>
+    <div class="title-bar">
+        <h1>🔷 SLAM LiDAR Simulation</h1>
+        <div class="status-indicators">
+            <div class="indicator"><span class="dot"></span><span>Gazebo Sim</span></div>
+            <div class="indicator"><span class="dot" style="background: #1f6feb;"></span><span>RViz Map</span></div>
+            <div class="indicator"><span class="dot" style="background: #d29922;"></span><span>ROS Node</span></div>
+        </div>
+    </div>
+
+    <div class="main-layout">
+        <div class="panel rviz-panel">
+            <div class="panel-header">
+                <span class="icon">📊</span>
+                <span>RViz - 2D Occupancy Grid Map</span>
+            </div>
+            <div class="rviz-canvas-container">
+                <canvas id="rvizCanvas"></canvas>
+                <div class="overlay-hint">
+                    <div class="hint-title">RViz View</div>
+                    <div>Fixed Frame: map</div>
+                    <div>Topic: /map</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel gazebo-panel">
+            <div class="panel-header">
+                <span class="icon">🎮</span>
+                <span>Gazebo - 3D Physics Simulation</span>
+            </div>
+            <div class="gazebo-canvas-container">
+                <canvas id="gazeboCanvas"></canvas>
+                <div class="overlay-hint">
+                    <div class="hint-title">Gazebo View</div>
+                    <div>World: slam_tutorial</div>
+                    <div>Physics: ODE</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="bottom-area">
+        <div class="panel terminal-panel">
+            <div class="panel-header">
+                <span class="icon">🖥️</span>
+                <span>Terminal - ROS Logs</span>
+            </div>
+            <div class="terminal-content" id="terminalContent"></div>
+        </div>
+
+        <div class="panel control-panel">
+            <div class="panel-header">
+                <span class="icon">🎛️</span>
+                <span>Control Panel</span>
+            </div>
+            <div class="control-content">
+                <div class="control-group">
+                    <label>🚀 机器人控制</label>
+                    <div class="control-row">
+                        <span class="key-hint"><kbd>W</kbd> 前进</span>
+                        <span class="key-hint"><kbd>S</kbd> 后退</span>
+                        <span class="key-hint"><kbd>A</kbd> 左转</span>
+                        <span class="key-hint"><kbd>D</kbd> 右转</span>
+                    </div>
+                    <div class="control-row" style="margin-top:4px;">
+                        <span class="key-hint"><kbd>Q</kbd> 左旋</span>
+                        <span class="key-hint"><kbd>E</kbd> 右旋</span>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <label>🎯 自动任务</label>
+                    <div class="control-row">
+                        <button id="patrolBtn" class="primary">🎯 开始自动收集</button>
+                        <button id="stopPatrolBtn">⏹️ 停止</button>
+                    </div>
+                    <div style="font-size:10px;color:#484f58;margin-top:4px;">
+                        扫描到网球→规划路线拾取 | 未扫描到→随机游走探索
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <label>🖱️ 交互操作</label>
+                    <div class="control-row">
+                        <button id="addObstacleBtn">➕ 添加障碍物</button>
+                        <button id="addBallBtn">🎾 添加网球</button>
+                        <button id="clearMapBtn" class="danger">🗑️ 清空地图</button>
+                    </div>
+                    <div style="font-size:10px;color:#484f58;margin-top:4px;" id="interactionHint">
+                        点击 Gazebo 或 RViz 视图添加物体
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <label>📊 实时状态</label>
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <div class="stat-label">位置 X</div>
+                            <div class="stat-value" id="statX">0.00</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">位置 Y</div>
+                            <div class="stat-value" id="statY">0.00</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">朝向 θ</div>
+                            <div class="stat-value" id="statTheta">0°</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">线速度</div>
+                            <div class="stat-value" id="statVel">0.00</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">持有网球</div>
+                            <div class="stat-value" id="statBall" style="color:#a855f7">无</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">自动模式</div>
+                            <div class="stat-value" id="statMode">手动</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<script>
+(function() {
+    // ==================== 配置 ====================
+    const CONFIG = {
+        worldWidth: 900,
+        worldHeight: 700,
+        gridSize: 10,
+        lidarRange: 300,
+        lidarResolution: 360,
+        robotRadius: 12,
+        moveSpeed: 2.0,
+        rotSpeed: 0.04,
+        ballRadius: 5,
+        ballCount: 6,
+        dropZone: { x: 100, y: 600 },
+        pickDist: 20,
+        dropDist: 25,
+        lightSource: { x: 200, y: 150, z: 400 },
+        colors: {
+            free: 'rgba(200, 220, 240, 0.15)',
+            occupied: 'rgba(60, 60, 80, 0.9)',
+            unknown: 'rgba(30, 35, 40, 0.3)',
+            scanPoint: '#00d4aa',
+            scanLine: 'rgba(0, 212, 170, 0.15)',
+            robot: '#58a6ff',
+            robotHolding: '#a855f7',
+            robotDir: '#ffd700',
+            wall: '#c9a96e',
+            wallTop: '#e8d5a3',
+            wallSide: '#a08050',
+            cylinder: '#d4a574',
+            cylinderTop: '#f0d5a8',
+            cylinderSide: '#b08050',
+            floor: '#1e2330',
+            floorGrid: '#2a3040',
+            floorGridMajor: '#3a4055',
+            light: '#fff8e0',
+            shadow: 'rgba(0, 0, 0, 0.35)',
+            ball: '#fbbf24',
+            ballGlow: 'rgba(251, 191, 36, 0.4)',
+            dropZone: 'rgba(34, 197, 94, 0.25)',
+            dropZoneBorder: '#22c55e'
+        }
+    };
+
+    // ==================== 状态 ====================
+    const state = {
+        robot: { x: 450, y: 350, theta: 0, vx: 0, vy: 0, omega: 0 },
+        keys: {},
+        obstacles: { walls: [], cylinders: [] },
+        balls: [],
+        holdingBall: false,
+        grid: [],
+        scanData: [],
+        terminalLines: [],
+        frameCount: 0,
+        isAddingObstacle: false,
+        isAddingBall: false,
+        isPatrolling: false,
+        // 自动模式状态机: 'idle' | 'wander' | 'pursue' | 'return'
+        patrolMode: 'idle',
+        patrolPath: [],
+        patrolTargetIdx: 0,
+        pursueTarget: null,
+        // 随机游走状态
+        wanderAngle: 0,
+        wanderTimer: 0,
+        missionComplete: false
+    };
+
+    // ==================== Canvas 设置 ====================
+    const rvizCanvas = document.getElementById('rvizCanvas');
+    const rvizCtx = rvizCanvas.getContext('2d');
+    const gazeboCanvas = document.getElementById('gazeboCanvas');
+    const gazeboCtx = gazeboCanvas.getContext('2d');
+
+    function resizeCanvases() {
+        const rvizContainer = rvizCanvas.parentElement;
+        const gazeboContainer = gazeboCanvas.parentElement;
+        rvizCanvas.width = rvizContainer.clientWidth;
+        rvizCanvas.height = rvizContainer.clientHeight;
+        gazeboCanvas.width = gazeboContainer.clientWidth;
+        gazeboCanvas.height = gazeboContainer.clientHeight;
+    }
+    resizeCanvases();
+    window.addEventListener('resize', resizeCanvases);
+
+    // ==================== 坐标转换工具 ====================
+    function getWorldCoordsFromScreen(canvas, screenX, screenY) {
+        if (canvas === gazeboCanvas) {
+            const scale = Math.min(canvas.width / (CONFIG.worldWidth + 200), canvas.height / (CONFIG.worldHeight + 200)) * 0.85;
+            const offsetX = canvas.width / 2 - (CONFIG.worldWidth / 2) * scale;
+            const offsetY = canvas.height / 2 - (CONFIG.worldHeight / 2) * scale + 30;
+            return {
+                x: (screenX - offsetX) / scale,
+                y: (screenY - offsetY) / scale
+            };
+        } else {
+            const w = canvas.width;
+            const h = canvas.height;
+            const scaleX = w / CONFIG.worldWidth;
+            const scaleY = h / CONFIG.worldHeight;
+            const scale = Math.min(scaleX, scaleY);
+            const offsetX = (w - CONFIG.worldWidth * scale) / 2;
+            const offsetY = (h - CONFIG.worldHeight * scale) / 2;
+            return {
+                x: (screenX - offsetX) / scale,
+                y: (screenY - offsetY) / scale
+            };
+        }
+    }
+
+    // ==================== 初始化环境 ====================
+    const GW = Math.ceil(CONFIG.worldWidth / CONFIG.gridSize);
+    const GH = Math.ceil(CONFIG.worldHeight / CONFIG.gridSize);
+
+    function initGrid() { state.grid = new Array(GW * GH).fill(0.5); }
+
+    function isPositionFree(x, y, margin) {
+        const m = margin || CONFIG.robotRadius + 5;
+        if (x < 40 + m || x > CONFIG.worldWidth - 40 - m ||
+            y < 40 + m || y > CONFIG.worldHeight - 40 - m) return false;
+        for (const cyl of state.obstacles.cylinders) {
+            if (Math.hypot(x - cyl.cx, y - cyl.cy) < cyl.r + m) return false;
+        }
+        for (const wall of state.obstacles.walls) {
+            const ax = wall.x1, ay = wall.y1, bx = wall.x2, by = wall.y2;
+            const abx = bx - ax, aby = by - ay;
+            const t = Math.max(0, Math.min(1, ((x - ax)*abx + (y - ay)*aby) / (abx*abx + aby*aby || 1)));
+            const closestX = ax + t * abx, closestY = ay + t * aby;
+            if (Math.hypot(x - closestX, y - closestY) < m + 3) return false;
+        }
+        return true;
+    }
+
+    function spawnBalls() {
+        state.balls = [];
+        let attempts = 0;
+        while (state.balls.length < CONFIG.ballCount && attempts < 200) {
+            attempts++;
+            const x = 80 + Math.random() * (CONFIG.worldWidth - 160);
+            const y = 80 + Math.random() * (CONFIG.worldHeight - 160);
+            if (Math.hypot(x - CONFIG.dropZone.x, y - CONFIG.dropZone.y) < 60) continue;
+            if (Math.hypot(x - state.robot.x, y - state.robot.y) < 80) continue;
+            let overlap = false;
+            for (const b of state.balls) {
+                if (Math.hypot(x - b.x, y - b.y) < 30) { overlap = true; break; }
+            }
+            if (overlap) continue;
+            if (isPositionFree(x, y, 15)) {
+                state.balls.push({ x, y, picked: false, id: state.balls.length });
+            }
+        }
+    }
+
+    function addBallAt(x, y) {
+        const clampedX = Math.max(50, Math.min(CONFIG.worldWidth - 50, x));
+        const clampedY = Math.max(50, Math.min(CONFIG.worldHeight - 50, y));
+        state.balls.push({
+            x: clampedX,
+            y: clampedY,
+            picked: false,
+            id: state.balls.length > 0 ? Math.max(...state.balls.map(b => b.id)) + 1 : 0
+        });
+        addLog(`🎾 Tennis ball added at (${clampedX.toFixed(0)}, ${clampedY.toFixed(0)})`, 'success');
+        state.missionComplete = false;
+    }
+
+    function initEnvironment() {
+        state.obstacles.walls = [];
+        state.obstacles.cylinders = [];
+        initGrid();
+        state.holdingBall = false;
+        state.missionComplete = false;
+        state.patrolMode = 'idle';
+        state.patrolPath = [];
+        state.pursueTarget = null;
+
+        const margin = 40;
+        state.obstacles.walls.push(
+            {x1: margin, y1: margin, x2: CONFIG.worldWidth-margin, y2: margin},
+            {x1: CONFIG.worldWidth-margin, y1: margin, x2: CONFIG.worldWidth-margin, y2: CONFIG.worldHeight-margin},
+            {x1: CONFIG.worldWidth-margin, y1: CONFIG.worldHeight-margin, x2: margin, y2: CONFIG.worldHeight-margin},
+            {x1: margin, y1: CONFIG.worldHeight-margin, x2: margin, y2: margin}
+        );
+
+        state.obstacles.walls.push(
+            {x1: 150, y1: 150, x2: 150, y2: 300},
+            {x1: 150, y1: 300, x2: 250, y2: 300},
+            {x1: 700, y1: 200, x2: 800, y2: 200},
+            {x1: 800, y1: 200, x2: 800, y2: 500}
+        );
+
+        state.obstacles.cylinders.push(
+            {cx: 200, cy: 500, r: 25, h: 80},
+            {cx: 280, cy: 550, r: 20, h: 60},
+            {cx: 650, cy: 180, r: 30, h: 100},
+            {cx: 750, cy: 350, r: 22, h: 70},
+            {cx: 680, cy: 580, r: 28, h: 90},
+            {cx: 450, cy: 120, r: 18, h: 50},
+            {cx: 120, cy: 200, r: 20, h: 60},
+            {cx: 820, cy: 450, r: 24, h: 80}
+        );
+
+        spawnBalls();
+    }
+
+    // ==================== 几何工具 ====================
+    function raySegmentIntersect(px, py, dx, dy, x1, y1, x2, y2) {
+        const rdx = dx, rdy = dy;
+        const sdx = x2 - x1, sdy = y2 - y1;
+        const denom = rdx * sdy - rdy * sdx;
+        if (Math.abs(denom) < 1e-10) return null;
+        const t = ((x1 - px) * sdy - (y1 - py) * sdx) / denom;
+        const u = ((x1 - px) * rdy - (y1 - py) * rdx) / denom;
+        if (t >= 0 && u >= 0 && u <= 1) return t * Math.hypot(rdx, rdy);
+        return null;
+    }
+
+    function rayCircleIntersect(px, py, dx, dy, cx, cy, r) {
+        const ocX = px - cx, ocY = py - cy;
+        const a = dx*dx + dy*dy;
+        const b = 2 * (ocX*dx + ocY*dy);
+        const c = ocX*ocX + ocY*ocY - r*r;
+        const disc = b*b - 4*a*c;
+        if (disc < 0) return null;
+        const sqrtD = Math.sqrt(disc);
+        const t1 = (-b - sqrtD) / (2*a);
+        const t2 = (-b + sqrtD) / (2*a);
+        let t = null;
+        if (t1 >= 0) t = t1;
+        if (t2 >= 0 && (t === null || t2 < t)) t = t2;
+        return t !== null ? t * Math.hypot(dx, dy) : null;
+    }
+
+    // ==================== LiDAR 扫描 ====================
+    function performScan() {
+        const ranges = [];
+        const angleStep = (Math.PI * 2) / CONFIG.lidarResolution;
+        for (let i = 0; i < CONFIG.lidarResolution; i++) {
+            const angle = state.robot.theta + i * angleStep;
+            const dirX = Math.cos(angle);
+            const dirY = Math.sin(angle);
+            let minDist = CONFIG.lidarRange;
+            for (const wall of state.obstacles.walls) {
+                const d = raySegmentIntersect(state.robot.x, state.robot.y, dirX, dirY, 
+                    wall.x1, wall.y1, wall.x2, wall.y2);
+                if (d !== null && d < minDist) minDist = d;
+            }
+            for (const cyl of state.obstacles.cylinders) {
+                const d = rayCircleIntersect(state.robot.x, state.robot.y, dirX, dirY,
+                    cyl.cx, cyl.cy, cyl.r);
+                if (d !== null && d < minDist) minDist = d;
+            }
+            ranges.push(minDist);
+        }
+        state.scanData = ranges;
+        return ranges;
+    }
+
+    // ==================== 占据栅格更新 ====================
+    function updateOccupancyGrid(ranges) {
+        const angleStep = (Math.PI * 2) / CONFIG.lidarResolution;
+        for (let i = 0; i < CONFIG.lidarResolution; i++) {
+            const range = ranges[i];
+            if (range >= CONFIG.lidarRange - 1) continue;
+            const angle = state.robot.theta + i * angleStep;
+            const endX = state.robot.x + Math.cos(angle) * range;
+            const endY = state.robot.y + Math.sin(angle) * range;
+            let x0 = Math.floor(state.robot.x / CONFIG.gridSize);
+            let y0 = Math.floor(state.robot.y / CONFIG.gridSize);
+            const x1 = Math.floor(endX / CONFIG.gridSize);
+            const y1 = Math.floor(endY / CONFIG.gridSize);
+            const dx = Math.abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
+            const dy = Math.abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
+            let err = dx - dy;
+            while (true) {
+                const idx = y0 * GW + x0;
+                if (idx >= 0 && idx < state.grid.length && !(x0 === x1 && y0 === y1)) {
+                    state.grid[idx] = Math.max(0.05, state.grid[idx] - 0.06);
+                }
+                if (x0 === x1 && y0 === y1) break;
+                const e2 = 2 * err;
+                if (e2 > -dy) { err -= dy; x0 += sx; }
+                if (e2 < dx) { err += dx; y0 += sy; }
+            }
+            const endIdx = y1 * GW + x1;
+            if (endIdx >= 0 && endIdx < state.grid.length) {
+                state.grid[endIdx] = Math.min(0.95, state.grid[endIdx] + 0.15);
+            }
+        }
+    }
+
+    // ==================== 网球拾取/放下 ====================
+    function tryPickBall() {
+        if (state.holdingBall) return;
+        for (const ball of state.balls) {
+            if (ball.picked) continue;
+            const dist = Math.hypot(state.robot.x - ball.x, state.robot.y - ball.y);
+            if (dist < CONFIG.pickDist) {
+                ball.picked = true;
+                state.holdingBall = true;
+                addLog(`🎾 Tennis ball #${ball.id + 1} picked up!`, 'success');
+                return;
+            }
+        }
+    }
+
+    function tryDropBall() {
+        if (!state.holdingBall) return;
+        const dist = Math.hypot(state.robot.x - CONFIG.dropZone.x, state.robot.y - CONFIG.dropZone.y);
+        if (dist < CONFIG.dropDist) {
+            for (const ball of state.balls) {
+                if (ball.picked) {
+                    ball.picked = false;
+                    ball.x = CONFIG.dropZone.x + (Math.random() - 0.5) * 30;
+                    ball.y = CONFIG.dropZone.y + (Math.random() - 0.5) * 30;
+                    break;
+                }
+            }
+            state.holdingBall = false;
+            addLog('🎾 Tennis ball dropped at drop zone (100,600)', 'success');
+            const remaining = state.balls.filter(b => !b.picked && 
+                Math.hypot(b.x - CONFIG.dropZone.x, b.y - CONFIG.dropZone.y) > CONFIG.dropDist + 10).length;
+            if (remaining === 0 && !state.balls.some(b => b.picked)) {
+                state.missionComplete = true;
+                addLog('🏆 Mission Complete! All tennis balls collected!', 'success');
+                stopPatrol();
+            }
+        }
+    }
+
+    // ==================== 视野检测 ====================
+    function findNearestVisibleBall() {
+        let nearest = null;
+        let minDist = Infinity;
+
+        for (const ball of state.balls) {
+            if (ball.picked) continue;
+            if (Math.hypot(ball.x - CONFIG.dropZone.x, ball.y - CONFIG.dropZone.y) < CONFIG.dropDist + 10) continue;
+
+            const dx = ball.x - state.robot.x;
+            const dy = ball.y - state.robot.y;
+            const dist = Math.hypot(dx, dy);
+
+            if (dist > CONFIG.lidarRange) continue;
+
+            const dirX = dx / dist;
+            const dirY = dy / dist;
+            let blocked = false;
+
+            for (const wall of state.obstacles.walls) {
+                const d = raySegmentIntersect(state.robot.x, state.robot.y, dirX, dirY,
+                    wall.x1, wall.y1, wall.x2, wall.y2);
+                if (d !== null && d < dist - 3) { blocked = true; break; }
+            }
+            if (blocked) continue;
+
+            for (const cyl of state.obstacles.cylinders) {
+                const d = rayCircleIntersect(state.robot.x, state.robot.y, dirX, dirY,
+                    cyl.cx, cyl.cy, cyl.r);
+                if (d !== null && d < dist - 3) { blocked = true; break; }
+            }
+            if (blocked) continue;
+
+            if (dist < minDist) {
+                minDist = dist;
+                nearest = ball;
+            }
+        }
+        return nearest;
+    }
+
+    // ==================== 自动巡回 - A* 路径规划 ====================
+    function isGridCollision(gx, gy) {
+        const wx = gx * CONFIG.gridSize + CONFIG.gridSize / 2;
+        const wy = gy * CONFIG.gridSize + CONFIG.gridSize / 2;
+        const margin = CONFIG.robotRadius + 10;
+
+        if (wx < 40 + margin || wx > CONFIG.worldWidth - 40 - margin ||
+            wy < 40 + margin || wy > CONFIG.worldHeight - 40 - margin) {
+            return true;
+        }
+        for (const cyl of state.obstacles.cylinders) {
+            if (Math.hypot(wx - cyl.cx, wy - cyl.cy) < cyl.r + margin) {
+                return true;
+            }
+        }
+        for (const wall of state.obstacles.walls) {
+            const ax = wall.x1, ay = wall.y1, bx = wall.x2, by = wall.y2;
+            const abx = bx - ax, aby = by - ay;
+            const t = Math.max(0, Math.min(1, ((wx - ax)*abx + (wy - ay)*aby) / (abx*abx + aby*aby || 1)));
+            const closestX = ax + t * abx, closestY = ay + t * aby;
+            if (Math.hypot(wx - closestX, wy - closestY) < margin + 3) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    function heuristic(x1, y1, x2, y2) {
+        const dx = x1 - x2;
+        const dy = y1 - y2;
+        return Math.sqrt(dx*dx + dy*dy);
+    }
+
+    function astar(startWx, startWy, goalWx, goalWy) {
+        const startGx = Math.floor(startWx / CONFIG.gridSize);
+        const startGy = Math.floor(startWy / CONFIG.gridSize);
+        const goalGx = Math.floor(goalWx / CONFIG.gridSize);
+        const goalGy = Math.floor(goalWy / CONFIG.gridSize);
+
+        if (startGx < 0 || startGx >= GW || startGy < 0 || startGy >= GH) return null;
+        if (goalGx < 0 || goalGx >= GW || goalGy < 0 || goalGy >= GH) return null;
+
+        const open = [];
+        const closed = new Set();
+
+        const startNode = {
+            x: startGx, y: startGy, g: 0,
+            h: heuristic(startGx, startGy, goalGx, goalGy),
+            parent: null
+        };
+        startNode.f = startNode.g + startNode.h;
+        open.push(startNode);
+
+        while (open.length > 0) {
+            let minIdx = 0;
+            for (let i = 1; i < open.length; i++) {
+                if (open[i].f < open[minIdx].f) minIdx = i;
+            }
+            const current = open[minIdx];
+            open.splice(minIdx, 1);
+
+            const key = `${current.x},${current.y}`;
+            if (closed.has(key)) continue;
+            closed.add(key);
+
+            if (current.x === goalGx && current.y === goalGy) {
+                const path = [];
+                let node = current;
+                while (node) {
+                    path.unshift({
+                        x: node.x * CONFIG.gridSize + CONFIG.gridSize / 2,
+                        y: node.y * CONFIG.gridSize + CONFIG.gridSize / 2
+                    });
+                    node = node.parent;
+                }
+                return path;
+            }
+
+            const neighbors = [
+                {x: 0, y: 1, cost: 1}, {x: 0, y: -1, cost: 1},
+                {x: 1, y: 0, cost: 1}, {x: -1, y: 0, cost: 1},
+                {x: 1, y: 1, cost: 1.414}, {x: 1, y: -1, cost: 1.414},
+                {x: -1, y: 1, cost: 1.414}, {x: -1, y: -1, cost: 1.414}
+            ];
+
+            for (const n of neighbors) {
+                const nx = current.x + n.x;
+                const ny = current.y + n.y;
+                if (nx < 0 || nx >= GW || ny < 0 || ny >= GH) continue;
+                if (isGridCollision(nx, ny)) continue;
+
+                const g = current.g + n.cost;
+                const h = heuristic(nx, ny, goalGx, goalGy);
+                const f = g + h;
+
+                let inOpen = false;
+                for (const node of open) {
+                    if (node.x === nx && node.y === ny && node.g <= g) {
+                        inOpen = true;
+                        break;
+                    }
+                }
+                if (inOpen) continue;
+                if (closed.has(`${nx},${ny}`)) continue;
+
+                open.push({x: nx, y: ny, g, h, f, parent: current});
+            }
+        }
+        return null;
+    }
+
+    function hasLineOfSight(p1, p2) {
+        const dx = p2.x - p1.x;
+        const dy = p2.y - p1.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist < 1) return true;
+        const dirX = dx / dist;
+        const dirY = dy / dist;
+        const margin = CONFIG.robotRadius + 8;
+
+        for (const wall of state.obstacles.walls) {
+            const d = raySegmentIntersect(p1.x, p1.y, dirX, dirY, wall.x1, wall.y1, wall.x2, wall.y2);
+            if (d !== null && d < dist - 2) return false;
+        }
+
+        for (const cyl of state.obstacles.cylinders) {
+            const d = rayCircleIntersect(p1.x, p1.y, dirX, dirY, cyl.cx, cyl.cy, cyl.r + margin);
+            if (d !== null && d < dist) return false;
+        }
+
+        return true;
+    }
+
+    function simplifyPath(path) {
+        if (path.length < 3) return path;
+        const simplified = [path[0]];
+        let i = 0;
+        while (i < path.length - 1) {
+            let farthest = i + 1;
+            for (let j = path.length - 1; j > i + 1; j--) {
+                if (hasLineOfSight(path[i], path[j])) {
+                    farthest = j;
+                    break;
+                }
+            }
+            simplified.push(path[farthest]);
+            i = farthest;
+        }
+        return simplified;
+    }
+
+    function followPath() {
+        if (state.patrolPath.length === 0) return {forward: 0, strafe: 0, rotate: 0};
+
+        let target = state.patrolPath[state.patrolTargetIdx];
+        let distToTarget = Math.hypot(target.x - state.robot.x, target.y - state.robot.y);
+
+        while (distToTarget < 20 && state.patrolTargetIdx < state.patrolPath.length - 1) {
+            state.patrolTargetIdx++;
+            target = state.patrolPath[state.patrolTargetIdx];
+            distToTarget = Math.hypot(target.x - state.robot.x, target.y - state.robot.y);
+        }
+
+        const desiredAngle = Math.atan2(target.y - state.robot.y, target.x - state.robot.x);
+        let angleDiff = desiredAngle - state.robot.theta;
+        while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
+        while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
+
+        let forward = 0, rotate = 0;
+        const angleThreshold = 0.35;
+
+        if (Math.abs(angleDiff) > angleThreshold) {
+            rotate = Math.sign(angleDiff) * Math.min(CONFIG.rotSpeed * 2.5, Math.abs(angleDiff) * 0.12 + 0.02);
+            forward = 0;
+        } else {
+            forward = Math.min(CONFIG.moveSpeed * 1.2, distToTarget * 0.12 + 0.3);
+            rotate = angleDiff * 0.08;
+        }
+
+        return {forward, strafe: 0, rotate};
+    }
+
+    // ==================== 随机游走 ====================
+    function updateWander() {
+        // 检查前方扇形区域障碍物
+        let minFrontDist = CONFIG.lidarRange;
+        const centerIdx = Math.floor(((state.robot.theta % (Math.PI*2)) + Math.PI*2) % (Math.PI*2) / ((Math.PI*2)/CONFIG.lidarResolution));
+        for (let i = -20; i <= 20; i++) {
+            let idx = (centerIdx + i + CONFIG.lidarResolution) % CONFIG.lidarResolution;
+            if (state.scanData[idx] < minFrontDist) minFrontDist = state.scanData[idx];
+        }
+
+        // 如果前方有障碍物或计时器到期，选择最空旷的方向
+        if (minFrontDist < 55 || state.wanderTimer <= 0) {
+            let bestAngle = state.robot.theta;
+            let bestDist = 0;
+            // 在几个候选方向中选择最空旷的
+            for (let a = 0; a < CONFIG.lidarResolution; a += 8) {
+                if (state.scanData[a] > bestDist) {
+                    bestDist = state.scanData[a];
+                    bestAngle = state.robot.theta + a * ((Math.PI*2)/CONFIG.lidarResolution);
+                }
+            }
+            // 加一些随机性，避免来回走
+            state.wanderAngle = bestAngle + (Math.random() - 0.5) * 0.8;
+            state.wanderTimer = 50 + Math.floor(Math.random() * 100);
+        } else {
+            state.wanderTimer--;
+        }
+
+        let angleDiff = state.wanderAngle - state.robot.theta;
+        while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
+        while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
+
+        let rotate = Math.sign(angleDiff) * Math.min(CONFIG.rotSpeed * 1.8, Math.abs(angleDiff) * 0.1 + 0.015);
+        let forward = Math.abs(angleDiff) < 0.5 ? CONFIG.moveSpeed * 0.65 : 0;
+
+        // 如果前方很近有障碍，减速或停止
+        if (minFrontDist < 30) forward = 0;
+        else if (minFrontDist < 60) forward *= 0.5;
+
+        return {forward, strafe: 0, rotate};
+    }
+
+    // ==================== 自动模式主控 ====================
+    function updateAutoPilot() {
+        if (!state.isPatrolling) return {forward: 0, strafe: 0, rotate: 0};
+
+        // 持有球：返回投放点
+        if (state.holdingBall) {
+            if (state.patrolMode !== 'return') {
+                state.patrolMode = 'return';
+                const path = astar(state.robot.x, state.robot.y, CONFIG.dropZone.x, CONFIG.dropZone.y);
+                if (path) {
+                    state.patrolPath = simplifyPath(path);
+                    state.patrolTargetIdx = 0;
+                    addLog('📦 Holding ball. Returning to drop zone...', 'info');
+                }
+            }
+            const distToDrop = Math.hypot(CONFIG.dropZone.x - state.robot.x, CONFIG.dropZone.y - state.robot.y);
+            if (distToDrop < CONFIG.dropDist) {
+                tryDropBall();
+                state.patrolMode = 'idle'; // 放下后重新评估
+                return {forward: 0, strafe: 0, rotate: 0};
+            }
+            return followPath();
+        }
+
+        // 没持有球：检查视野内是否有可见网球
+        const visibleBall = findNearestVisibleBall();
+
+        if (visibleBall) {
+            // 追踪模式
+            const needNewPath = state.patrolMode !== 'pursue' || 
+                                !state.pursueTarget || 
+                                state.pursueTarget.id !== visibleBall.id;
+
+            if (needNewPath) {
+                state.patrolMode = 'pursue';
+                state.pursueTarget = visibleBall;
+                const path = astar(state.robot.x, state.robot.y, visibleBall.x, visibleBall.y);
+                if (path) {
+                    state.patrolPath = simplifyPath(path);
+                    state.patrolTargetIdx = 0;
+                    addLog(`🎾 Ball #${visibleBall.id} detected! Planning pursuit route...`, 'info');
+                } else {
+                    // A* 失败，直接朝球走
+                    state.patrolPath = [{x: visibleBall.x, y: visibleBall.y}];
+                    state.patrolTargetIdx = 0;
+                }
+            }
+
+            const distToBall = Math.hypot(visibleBall.x - state.robot.x, visibleBall.y - state.robot.y);
+            if (distToBall < CONFIG.pickDist) {
+                tryPickBall();
+                state.patrolMode = 'idle';
+                return {forward: 0, strafe: 0, rotate: 0};
+            }
+            return followPath();
+        } else {
+            // 没有可见网球：随机游走
+            if (state.patrolMode !== 'wander') {
+                state.patrolMode = 'wander';
+                state.patrolPath = [];
+                state.wanderTimer = 0;
+                addLog('👁️ No ball in LiDAR sight. Random wandering for exploration...', 'warn');
+            }
+            return updateWander();
+        }
+    }
+
+    function startPatrol() {
+        if (state.isPatrolling) return;
+        if (state.missionComplete) {
+            addLog('Mission already complete! Reset map to restart.', 'warn');
+            return;
+        }
+        state.isPatrolling = true;
+        state.patrolMode = 'idle';
+        state.patrolPath = [];
+        state.wanderTimer = 0;
+        addLog('🤖 Auto collection started. Scanning for tennis balls...', 'success');
+    }
+
+    function stopPatrol() {
+        state.isPatrolling = false;
+        state.patrolMode = 'idle';
+        state.patrolPath = [];
+        state.patrolTargetIdx = 0;
+        state.pursueTarget = null;
+        addLog('Patrol stopped', 'warn');
+    }
+
+    // ==================== 机器人控制 ====================
+    function updateRobot() {
+        let forward = 0, strafe = 0, rotate = 0;
+
+        if (state.isPatrolling) {
+            const cmd = updateAutoPilot();
+            forward = cmd.forward;
+            strafe = cmd.strafe;
+            rotate = cmd.rotate;
+        } else {
+            if (state.keys['w'] || state.keys['arrowup']) forward = CONFIG.moveSpeed;
+            if (state.keys['s'] || state.keys['arrowdown']) forward = -CONFIG.moveSpeed;
+            if (state.keys['a'] || state.keys['arrowleft']) strafe = -CONFIG.moveSpeed * 0.6;
+            if (state.keys['d'] || state.keys['arrowright']) strafe = CONFIG.moveSpeed * 0.6;
+            if (state.keys['q']) rotate = -CONFIG.rotSpeed;
+            if (state.keys['e']) rotate = CONFIG.rotSpeed;
+        }
+
+        state.robot.theta += rotate;
+        const newX = state.robot.x + forward * Math.cos(state.robot.theta) + strafe * Math.sin(state.robot.theta);
+        const newY = state.robot.y + forward * Math.sin(state.robot.theta) - strafe * Math.cos(state.robot.theta);
+
+        const margin = 40;
+        let collision = false;
+        if (newX < margin + CONFIG.robotRadius || newX > CONFIG.worldWidth - margin - CONFIG.robotRadius ||
+            newY < margin + CONFIG.robotRadius || newY > CONFIG.worldHeight - margin - CONFIG.robotRadius) {
+            collision = true;
+        }
+        for (const cyl of state.obstacles.cylinders) {
+            const dist = Math.hypot(newX - cyl.cx, newY - cyl.cy);
+            if (dist < cyl.r + CONFIG.robotRadius) { collision = true; break; }
+        }
+        for (const wall of state.obstacles.walls) {
+            const ax = wall.x1, ay = wall.y1, bx = wall.x2, by = wall.y2;
+            const abx = bx - ax, aby = by - ay;
+            const t = Math.max(0, Math.min(1, ((newX - ax)*abx + (newY - ay)*aby) / (abx*abx + aby*aby || 1)));
+            const closestX = ax + t * abx, closestY = ay + t * aby;
+            if (Math.hypot(newX - closestX, newY - closestY) < CONFIG.robotRadius + 3) {
+                collision = true; break;
+            }
+        }
+        if (!collision) {
+            state.robot.x = newX;
+            state.robot.y = newY;
+        } else if (state.isPatrolling && state.patrolMode === 'wander') {
+            // 随机游走时碰撞，立即换方向
+            state.wanderTimer = 0;
+        } else if (state.isPatrolling) {
+            addLog('Obstacle detected, replanning path...', 'warn');
+            state.patrolMode = 'idle'; // 强制重新评估
+        }
+        state.robot.vx = forward * Math.cos(state.robot.theta);
+        state.robot.vy = forward * Math.sin(state.robot.theta);
+        state.robot.omega = rotate;
+
+        if (!state.isPatrolling) {
+            tryPickBall();
+            tryDropBall();
+        }
+    }
+
+    // ==================== 绘制 RViz (2D 地图) ====================
+    function drawRViz() {
+        const ctx = rvizCtx;
+        const w = rvizCanvas.width;
+        const h = rvizCanvas.height;
+        const scaleX = w / CONFIG.worldWidth;
+        const scaleY = h / CONFIG.worldHeight;
+        const scale = Math.min(scaleX, scaleY);
+        const offsetX = (w - CONFIG.worldWidth * scale) / 2;
+        const offsetY = (h - CONFIG.worldHeight * scale) / 2;
+
+        ctx.fillStyle = '#0d1117';
+        ctx.fillRect(0, 0, w, h);
+        ctx.save();
+        ctx.translate(offsetX, offsetY);
+        ctx.scale(scale, scale);
+
+        for (let gy = 0; gy < GH; gy++) {
+            for (let gx = 0; gx < GW; gx++) {
+                const idx = gy * GW + gx;
+                const prob = state.grid[idx];
+                let color;
+                if (prob > 0.65) color = CONFIG.colors.occupied;
+                else if (prob < 0.35) color = CONFIG.colors.free;
+                else color = CONFIG.colors.unknown;
+                ctx.fillStyle = color;
+                ctx.fillRect(gx * CONFIG.gridSize, gy * CONFIG.gridSize, CONFIG.gridSize, CONFIG.gridSize);
+            }
+        }
+
+        ctx.strokeStyle = 'rgba(255, 146, 72, 0.3)';
+        ctx.lineWidth = 1;
+        for (const wall of state.obstacles.walls) {
+            ctx.beginPath();
+            ctx.moveTo(wall.x1, wall.y1);
+            ctx.lineTo(wall.x2, wall.y2);
+            ctx.stroke();
+        }
+        for (const cyl of state.obstacles.cylinders) {
+            ctx.beginPath();
+            ctx.arc(cyl.cx, cyl.cy, cyl.r, 0, Math.PI*2);
+            ctx.stroke();
+        }
+
+        // 投放区
+        ctx.fillStyle = CONFIG.colors.dropZone;
+        ctx.strokeStyle = CONFIG.colors.dropZoneBorder;
+        ctx.lineWidth = 2;
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.arc(CONFIG.dropZone.x, CONFIG.dropZone.y, 35, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = '#22c55e';
+        ctx.font = 'bold 11px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('DROP', CONFIG.dropZone.x, CONFIG.dropZone.y + 4);
+
+        // 网球
+        for (const ball of state.balls) {
+            if (ball.picked) continue;
+            ctx.fillStyle = CONFIG.colors.ballGlow;
+            ctx.beginPath();
+            ctx.arc(ball.x, ball.y, CONFIG.ballRadius + 4, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = CONFIG.colors.ball;
+            ctx.beginPath();
+            ctx.arc(ball.x, ball.y, CONFIG.ballRadius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = '#f59e0b';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+        }
+
+        // 巡逻路径
+        if (state.patrolPath.length > 0 && (state.patrolMode === 'pursue' || state.patrolMode === 'return')) {
+            ctx.strokeStyle = state.patrolMode === 'pursue' ? 'rgba(255, 200, 50, 0.8)' : 'rgba(34, 197, 94, 0.8)';
+            ctx.lineWidth = 2.5;
+            ctx.setLineDash([6, 4]);
+            ctx.beginPath();
+            ctx.moveTo(state.patrolPath[0].x, state.patrolPath[0].y);
+            for (let i = 1; i < state.patrolPath.length; i++) {
+                ctx.lineTo(state.patrolPath[i].x, state.patrolPath[i].y);
+            }
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            if (state.patrolTargetIdx < state.patrolPath.length) {
+                const curr = state.patrolPath[state.patrolTargetIdx];
+                ctx.fillStyle = state.patrolMode === 'pursue' ? '#ffd700' : '#22c55e';
+                ctx.beginPath();
+                ctx.arc(curr.x, curr.y, 4, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        const angleStep = (Math.PI * 2) / CONFIG.lidarResolution;
+        for (let i = 0; i < CONFIG.lidarResolution; i++) {
+            const range = state.scanData[i];
+            if (range < CONFIG.lidarRange - 1) {
+                const angle = state.robot.theta + i * angleStep;
+                const px = state.robot.x + Math.cos(angle) * range;
+                const py = state.robot.y + Math.sin(angle) * range;
+                ctx.fillStyle = CONFIG.colors.scanPoint;
+                ctx.fillRect(px - 1.5, py - 1.5, 3, 3);
+            }
+        }
+
+        // 机器人
+        const robotColor = state.holdingBall ? CONFIG.colors.robotHolding : CONFIG.colors.robot;
+        ctx.beginPath();
+        ctx.arc(state.robot.x, state.robot.y, CONFIG.robotRadius, 0, Math.PI*2);
+        ctx.fillStyle = robotColor;
+        ctx.fill();
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        if (state.holdingBall) {
+            ctx.fillStyle = CONFIG.colors.ball;
+            ctx.beginPath();
+            ctx.arc(state.robot.x, state.robot.y - CONFIG.robotRadius - 3, CONFIG.ballRadius + 1, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = '#f59e0b';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+        }
+
+        const tipX = state.robot.x + Math.cos(state.robot.theta) * 20;
+        const tipY = state.robot.y + Math.sin(state.robot.theta) * 20;
+        ctx.beginPath();
+        ctx.moveTo(state.robot.x, state.robot.y);
+        ctx.lineTo(tipX, tipY);
+        ctx.strokeStyle = CONFIG.colors.robotDir;
+        ctx.lineWidth = 2.5;
+        ctx.stroke();
+
+        ctx.restore();
+    }
+
+    // ==================== 绘制 Gazebo (正交投影 + 光源 + 阴影) ====================
+    function drawGazebo() {
+        const ctx = gazeboCtx;
+        const w = gazeboCanvas.width;
+        const h = gazeboCanvas.height;
+
+        ctx.fillStyle = '#141820';
+        ctx.fillRect(0, 0, w, h);
+
+        const scale = Math.min(w / (CONFIG.worldWidth + 200), h / (CONFIG.worldHeight + 200)) * 0.85;
+        const offsetX = w / 2 - (CONFIG.worldWidth / 2) * scale;
+        const offsetY = h / 2 - (CONFIG.worldHeight / 2) * scale + 30;
+
+        function project(x, y, z) {
+            return {
+                x: offsetX + x * scale,
+                y: offsetY + y * scale - z * scale * 0.5
+            };
+        }
+
+        const light = CONFIG.lightSource;
+
+        function getShadowOffset(worldX, worldY, objHeight) {
+            const dx = worldX - light.x;
+            const dy = worldY - light.y;
+            const dist = Math.hypot(dx, dy) || 1;
+            const shadowLen = objHeight * 0.6 * (1 + dist / 800);
+            return {
+                x: (dx / dist) * shadowLen * scale,
+                y: (dy / dist) * shadowLen * scale * 0.5
+            };
+        }
+
+        // 地面网格
+        const gridSpacing = 50;
+        ctx.strokeStyle = CONFIG.colors.floorGrid;
+        ctx.lineWidth = 0.5;
+        for (let x = 0; x <= CONFIG.worldWidth; x += gridSpacing) {
+            const p1 = project(x, 0, 0);
+            const p2 = project(x, CONFIG.worldHeight, 0);
+            ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();
+        }
+        for (let y = 0; y <= CONFIG.worldHeight; y += gridSpacing) {
+            const p1 = project(0, y, 0);
+            const p2 = project(CONFIG.worldWidth, y, 0);
+            ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();
+        }
+
+        ctx.strokeStyle = CONFIG.colors.floorGridMajor;
+        ctx.lineWidth = 1;
+        for (let x = 0; x <= CONFIG.worldWidth; x += 100) {
+            const p1 = project(x, 0, 0);
+            const p2 = project(x, CONFIG.worldHeight, 0);
+            ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();
+        }
+        for (let y = 0; y <= CONFIG.worldHeight; y += 100) {
+            const p1 = project(0, y, 0);
+            const p2 = project(CONFIG.worldWidth, y, 0);
+            ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();
+        }
+
+        // 地面底色
+        const floorP1 = project(40, 40, 0);
+        const floorP2 = project(CONFIG.worldWidth - 40, 40, 0);
+        const floorP3 = project(CONFIG.worldWidth - 40, CONFIG.worldHeight - 40, 0);
+        const floorP4 = project(40, CONFIG.worldHeight - 40, 0);
+        ctx.fillStyle = CONFIG.colors.floor;
+        ctx.beginPath();
+        ctx.moveTo(floorP1.x, floorP1.y);
+        ctx.lineTo(floorP2.x, floorP2.y);
+        ctx.lineTo(floorP3.x, floorP3.y);
+        ctx.lineTo(floorP4.x, floorP4.y);
+        ctx.closePath();
+        ctx.fill();
+
+        // 投放区地面标记
+        const dzBase = project(CONFIG.dropZone.x, CONFIG.dropZone.y, 0);
+        ctx.fillStyle = CONFIG.colors.dropZone;
+        ctx.beginPath();
+        ctx.ellipse(dzBase.x, dzBase.y, 35 * scale, 35 * scale * 0.35, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = CONFIG.colors.dropZoneBorder;
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([3, 3]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // 收集可绘制对象
+        const drawList = [];
+
+        for (const wall of state.obstacles.walls) {
+            const height = 80;
+            const pBase1 = project(wall.x1, wall.y1, 0);
+            const pBase2 = project(wall.x2, wall.y2, 0);
+            const pTop1 = project(wall.x1, wall.y1, height);
+            const pTop2 = project(wall.x2, wall.y2, height);
+            const midY = (wall.y1 + wall.y2) / 2;
+            drawList.push({
+                type: 'wall', sortY: midY,
+                pBase1, pBase2, pTop1, pTop2,
+                height, midX: (wall.x1 + wall.x2) / 2, midY: midY
+            });
+        }
+
+        for (const cyl of state.obstacles.cylinders) {
+            drawList.push({
+                type: 'cylinder', sortY: cyl.cy,
+                cx: cyl.cx, cy: cyl.cy, r: cyl.r, h: cyl.h
+            });
+        }
+
+        for (const ball of state.balls) {
+            if (!ball.picked) {
+                drawList.push({
+                    type: 'ball', sortY: ball.y,
+                    x: ball.x, y: ball.y
+                });
+            }
+        }
+
+        drawList.push({
+            type: 'robot', sortY: state.robot.y,
+            x: state.robot.x, y: state.robot.y, theta: state.robot.theta
+        });
+
+        drawList.sort((a, b) => a.sortY - b.sortY);
+
+        // 阴影
+        for (const item of drawList) {
+            if (item.type === 'wall') {
+                const sh = getShadowOffset(item.midX, item.midY, item.height);
+                ctx.fillStyle = CONFIG.colors.shadow;
+                ctx.beginPath();
+                ctx.moveTo(item.pBase1.x + sh.x, item.pBase1.y + sh.y);
+                ctx.lineTo(item.pBase2.x + sh.x, item.pBase2.y + sh.y);
+                ctx.lineTo(item.pBase2.x + sh.x * 1.3, item.pBase2.y + sh.y * 1.3);
+                ctx.lineTo(item.pBase1.x + sh.x * 1.3, item.pBase1.y + sh.y * 1.3);
+                ctx.closePath();
+                ctx.fill();
+            } else if (item.type === 'cylinder') {
+                const sh = getShadowOffset(item.cx, item.cy, item.h);
+                const base = project(item.cx, item.cy, 0);
+                const shadowR = item.r * scale * 1.2;
+                ctx.fillStyle = CONFIG.colors.shadow;
+                ctx.beginPath();
+                ctx.ellipse(base.x + sh.x, base.y + sh.y, shadowR, shadowR * 0.4, 0, 0, Math.PI * 2);
+                ctx.fill();
+            } else if (item.type === 'robot') {
+                const sh = getShadowOffset(item.x, item.y, 25);
+                const base = project(item.x, item.y, 0);
+                const shadowR = CONFIG.robotRadius * scale * 1.1;
+                ctx.fillStyle = CONFIG.colors.shadow;
+                ctx.beginPath();
+                ctx.ellipse(base.x + sh.x, base.y + sh.y, shadowR, shadowR * 0.4, 0, 0, Math.PI * 2);
+                ctx.fill();
+            } else if (item.type === 'ball') {
+                const sh = getShadowOffset(item.x, item.y, 8);
+                const base = project(item.x, item.y, 0);
+                ctx.fillStyle = CONFIG.colors.shadow;
+                ctx.beginPath();
+                ctx.ellipse(base.x + sh.x, base.y + sh.y, 6 * scale, 3 * scale, 0, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        // 绘制物体
+        for (const item of drawList) {
+            switch (item.type) {
+                case 'wall': {
+                    const lightDir = { x: light.x - item.midX, y: light.y - item.midY };
+                    const wallDir = { x: item.pBase2.x - item.pBase1.x, y: item.pBase2.y - item.pBase1.y };
+                    const dot = lightDir.x * wallDir.x + lightDir.y * wallDir.y;
+                    const brightness = dot > 0 ? 1.0 : 0.75;
+                    const sideColor = `rgb(${Math.floor(161 * brightness)}, ${Math.floor(130 * brightness)}, ${Math.floor(78 * brightness)})`;
+                    ctx.fillStyle = sideColor;
+                    ctx.beginPath();
+                    ctx.moveTo(item.pBase1.x, item.pBase1.y);
+                    ctx.lineTo(item.pBase2.x, item.pBase2.y);
+                    ctx.lineTo(item.pTop2.x, item.pTop2.y);
+                    ctx.lineTo(item.pTop1.x, item.pTop1.y);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.strokeStyle = `rgba(200, 170, 120, ${0.3 + brightness * 0.3})`;
+                    ctx.lineWidth = 1;
+                    ctx.stroke();
+
+                    ctx.fillStyle = CONFIG.colors.wallTop;
+                    ctx.beginPath();
+                    ctx.moveTo(item.pTop1.x, item.pTop1.y);
+                    ctx.lineTo(item.pTop2.x, item.pTop2.y);
+                    const thickness = 4;
+                    ctx.lineTo(item.pTop2.x, item.pTop2.y + thickness);
+                    ctx.lineTo(item.pTop1.x, item.pTop1.y + thickness);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.strokeStyle = '#d4b896';
+                    ctx.stroke();
+                    break;
+                }
+
+                case 'cylinder': {
+                    const base = project(item.cx, item.cy, 0);
+                    const top = project(item.cx, item.cy, item.h);
+                    const r = item.r * scale;
+                    const lightDir = { x: light.x - item.cx, y: light.y - item.cy };
+                    const lightDist = Math.hypot(lightDir.x, lightDir.y) || 1;
+                    const lightFactor = 0.6 + 0.4 * (lightDir.y / lightDist);
+
+                    const grad = ctx.createLinearGradient(base.x - r, base.y, base.x + r, base.y);
+                    grad.addColorStop(0, `rgb(${Math.floor(140 * lightFactor)}, ${Math.floor(100 * lightFactor)}, ${Math.floor(60 * lightFactor)})`);
+                    grad.addColorStop(0.5, `rgb(${Math.floor(200 * lightFactor)}, ${Math.floor(160 * lightFactor)}, ${Math.floor(110 * lightFactor)})`);
+                    grad.addColorStop(1, `rgb(${Math.floor(140 * lightFactor)}, ${Math.floor(100 * lightFactor)}, ${Math.floor(60 * lightFactor)})`);
+
+                    ctx.fillStyle = grad;
+                    ctx.beginPath();
+                    ctx.ellipse(base.x, base.y, r, r * 0.35, 0, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    ctx.fillStyle = `rgb(${Math.floor(180 * lightFactor)}, ${Math.floor(140 * lightFactor)}, ${Math.floor(90 * lightFactor)})`;
+                    ctx.beginPath();
+                    ctx.moveTo(base.x - r, base.y - r * 0.35);
+                    ctx.lineTo(base.x + r, base.y - r * 0.35);
+                    ctx.lineTo(top.x + r, top.y - r * 0.35);
+                    ctx.lineTo(top.x - r, top.y - r * 0.35);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.strokeStyle = `rgba(220, 190, 140, 0.5)`;
+                    ctx.lineWidth = 0.5;
+                    ctx.stroke();
+
+                    ctx.fillStyle = CONFIG.colors.cylinderTop;
+                    ctx.beginPath();
+                    ctx.ellipse(top.x, top.y, r, r * 0.35, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.strokeStyle = '#e8d5a3';
+                    ctx.lineWidth = 1;
+                    ctx.stroke();
+
+                    if (lightFactor > 0.8) {
+                        ctx.fillStyle = 'rgba(255, 255, 230, 0.2)';
+                        ctx.beginPath();
+                        ctx.ellipse(top.x + r * 0.3, top.y - r * 0.1, r * 0.4, r * 0.15, 0, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                    break;
+                }
+
+                case 'ball': {
+                    const base = project(item.x, item.y, 0);
+                    const top = project(item.x, item.y, 8);
+                    const r = CONFIG.ballRadius * scale;
+
+                    const grad = ctx.createLinearGradient(base.x - r, base.y, base.x + r, base.y);
+                    grad.addColorStop(0, '#d97706');
+                    grad.addColorStop(0.5, '#fbbf24');
+                    grad.addColorStop(1, '#d97706');
+                    ctx.fillStyle = grad;
+                    ctx.beginPath();
+                    ctx.ellipse(base.x, base.y, r, r * 0.35, 0, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    ctx.fillStyle = '#fbbf24';
+                    ctx.beginPath();
+                    ctx.moveTo(base.x - r, base.y - r * 0.35);
+                    ctx.lineTo(base.x + r, base.y - r * 0.35);
+                    ctx.lineTo(top.x + r, top.y - r * 0.35);
+                    ctx.lineTo(top.x - r, top.y - r * 0.35);
+                    ctx.closePath();
+                    ctx.fill();
+
+                    ctx.fillStyle = '#fde68a';
+                    ctx.beginPath();
+                    ctx.ellipse(top.x, top.y, r, r * 0.35, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.strokeStyle = '#f59e0b';
+                    ctx.lineWidth = 0.5;
+                    ctx.stroke();
+                    break;
+                }
+
+                case 'robot': {
+                    const base = project(item.x, item.y, 0);
+                    const body = project(item.x, item.y, 18);
+                    const top = project(item.x, item.y, 28);
+                    const r = CONFIG.robotRadius * scale;
+                    const robotColor = state.holdingBall ? CONFIG.colors.robotHolding : CONFIG.colors.robot;
+
+                    ctx.fillStyle = robotColor + 'cc';
+                    ctx.beginPath();
+                    ctx.ellipse(base.x, base.y, r, r * 0.35, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.strokeStyle = '#fff';
+                    ctx.lineWidth = 1.5;
+                    ctx.stroke();
+
+                    ctx.fillStyle = robotColor + '99';
+                    ctx.beginPath();
+                    ctx.moveTo(base.x - r, base.y - r * 0.35);
+                    ctx.lineTo(base.x + r, base.y - r * 0.35);
+                    ctx.lineTo(body.x + r * 0.9, body.y - r * 0.3);
+                    ctx.lineTo(body.x - r * 0.9, body.y - r * 0.3);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.strokeStyle = state.holdingBall ? '#d8b4fe' : '#7eb8ff';
+                    ctx.lineWidth = 0.5;
+                    ctx.stroke();
+
+                    ctx.fillStyle = '#00d4aa';
+                    ctx.beginPath();
+                    ctx.ellipse(top.x, top.y, r * 0.7, r * 0.25, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.strokeStyle = '#00d4aa';
+                    ctx.lineWidth = 1.5;
+                    ctx.stroke();
+
+                    if (state.holdingBall) {
+                        const ballTop = project(item.x, item.y, 36);
+                        const br = (CONFIG.ballRadius + 2) * scale;
+                        const ballGrad = ctx.createRadialGradient(
+                            ballTop.x - br * 0.3, ballTop.y - br * 0.2, 0,
+                            ballTop.x, ballTop.y, br
+                        );
+                        ballGrad.addColorStop(0, '#fde68a');
+                        ballGrad.addColorStop(0.7, '#fbbf24');
+                        ballGrad.addColorStop(1, '#d97706');
+                        ctx.fillStyle = ballGrad;
+                        ctx.beginPath();
+                        ctx.arc(ballTop.x, ballTop.y, br, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.strokeStyle = '#f59e0b';
+                        ctx.lineWidth = 1;
+                        ctx.stroke();
+                    }
+
+                    const dirLen = r * 1.5;
+                    const dirWorldX = Math.cos(item.theta);
+                    const dirWorldY = Math.sin(item.theta);
+                    ctx.beginPath();
+                    ctx.moveTo(top.x, top.y);
+                    ctx.lineTo(top.x + dirWorldX * dirLen, top.y + dirWorldY * dirLen * 0.5 - r * 0.2);
+                    ctx.strokeStyle = '#ffd700';
+                    ctx.lineWidth = 2.5;
+                    ctx.stroke();
+
+                    const scanAngle = (state.frameCount * 0.1) % (Math.PI * 2);
+                    ctx.strokeStyle = `rgba(0, 212, 170, ${0.3 + 0.2 * Math.sin(state.frameCount * 0.2)})`;
+                    ctx.lineWidth = 1;
+                    ctx.beginPath();
+                    ctx.arc(top.x, top.y, r * 0.5, scanAngle, scanAngle + Math.PI * 0.5);
+                    ctx.stroke();
+                    break;
+                }
+            }
+        }
+
+        // 光源
+        const lightBase = project(light.x, light.y, 0);
+        const lightTop = project(light.x, light.y, light.z);
+
+        ctx.strokeStyle = 'rgba(255, 248, 224, 0.3)';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.moveTo(lightBase.x, lightBase.y);
+        ctx.lineTo(lightTop.x, lightTop.y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        const lightGlow = ctx.createRadialGradient(lightTop.x, lightTop.y, 0, lightTop.x, lightTop.y, 25);
+        lightGlow.addColorStop(0, 'rgba(255, 255, 240, 1)');
+        lightGlow.addColorStop(0.3, 'rgba(255, 248, 200, 0.8)');
+        lightGlow.addColorStop(0.7, 'rgba(255, 220, 100, 0.3)');
+        lightGlow.addColorStop(1, 'rgba(255, 200, 50, 0)');
+        ctx.fillStyle = lightGlow;
+        ctx.beginPath();
+        ctx.arc(lightTop.x, lightTop.y, 25, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.arc(lightTop.x, lightTop.y, 5, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = 'rgba(255, 248, 224, 0.7)';
+        ctx.font = '10px monospace';
+        ctx.fillText('💡 Light', lightTop.x + 15, lightTop.y - 10);
+
+        // 雷达扫描线（3D）
+        const angleStep = (Math.PI * 2) / CONFIG.lidarResolution;
+        const robotTop = project(state.robot.x, state.robot.y, 28);
+        for (let i = 0; i < CONFIG.lidarResolution; i += 3) {
+            const range = state.scanData[i];
+            if (range < CONFIG.lidarRange - 1) {
+                const angle = state.robot.theta + i * angleStep;
+                const ex = state.robot.x + Math.cos(angle) * range;
+                const ey = state.robot.y + Math.sin(angle) * range;
+                const pEnd = project(ex, ey, 20);
+                if (pEnd) {
+                    ctx.strokeStyle = `rgba(0, 212, 170, ${0.1 + 0.3 * (1 - range / CONFIG.lidarRange)})`;
+                    ctx.lineWidth = 0.5;
+                    ctx.beginPath();
+                    ctx.moveTo(robotTop.x, robotTop.y);
+                    ctx.lineTo(pEnd.x, pEnd.y);
+                    ctx.stroke();
+
+                    ctx.fillStyle = `rgba(0, 212, 170, ${0.4 + 0.6 * (1 - range / CONFIG.lidarRange)})`;
+                    ctx.beginPath();
+                    ctx.arc(pEnd.x, pEnd.y, 2, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+        }
+    }
+
+    // ==================== 终端日志 ====================
+    function addLog(message, level = 'info') {
+        const now = new Date();
+        const time = now.toTimeString().split(' ')[0];
+        const line = document.createElement('div');
+        line.className = 'terminal-line';
+        const levelClass = `level-${level}`;
+        line.innerHTML = `<span class="timestamp">[${time}]</span> <span class="${levelClass}">${message}</span>`;
+        document.getElementById('terminalContent').appendChild(line);
+        state.terminalLines.push({ time, message, level });
+        if (state.terminalLines.length > 100) {
+            state.terminalLines.shift();
+            document.getElementById('terminalContent').removeChild(
+                document.getElementById('terminalContent').firstChild
+            );
+        }
+        const term = document.getElementById('terminalContent');
+        term.scrollTop = term.scrollHeight;
+    }
+
+    function updateStats() {
+        document.getElementById('statX').textContent = state.robot.x.toFixed(1);
+        document.getElementById('statY').textContent = state.robot.y.toFixed(1);
+        document.getElementById('statTheta').textContent = (state.robot.theta * 180 / Math.PI % 360).toFixed(0) + '°';
+        const speed = Math.hypot(state.robot.vx, state.robot.vy);
+        document.getElementById('statVel').textContent = speed.toFixed(2);
+        document.getElementById('statBall').textContent = state.holdingBall ? '✅ 持有' : '无';
+        document.getElementById('statBall').style.color = state.holdingBall ? '#a855f7' : '#8b949e';
+
+        const modeMap = {
+            'idle': '待机',
+            'wander': '🌊 游走',
+            'pursue': '🎯 追踪',
+            'return': '📦 返程'
+        };
+        document.getElementById('statMode').textContent = state.isPatrolling ? (modeMap[state.patrolMode] || state.patrolMode) : '手动';
+        document.getElementById('statMode').style.color = state.isPatrolling ? '#22c55e' : '#8b949e';
+    }
+
+    // ==================== 事件处理 ====================
+    window.addEventListener('keydown', (e) => {
+        state.keys[e.key.toLowerCase()] = true;
+        if (['w','a','s','d','q','e','arrowup','arrowdown','arrowleft','arrowright'].includes(e.key.toLowerCase())) {
+            e.preventDefault();
+        }
+    });
+
+    window.addEventListener('keyup', (e) => {
+        state.keys[e.key.toLowerCase()] = false;
+    });
+
+    function handleCanvasClick(canvas, e) {
+        const rect = canvas.getBoundingClientRect();
+        const screenX = e.clientX - rect.left;
+        const screenY = e.clientY - rect.top;
+        const world = getWorldCoordsFromScreen(canvas, screenX, screenY);
+
+        if (state.isAddingObstacle) {
+            state.obstacles.cylinders.push({
+                cx: Math.max(60, Math.min(CONFIG.worldWidth - 60, world.x)),
+                cy: Math.max(60, Math.min(CONFIG.worldHeight - 60, world.y)),
+                r: 20 + Math.random() * 15,
+                h: 60 + Math.random() * 40
+            });
+            addLog(`Added cylinder obstacle at (${world.x.toFixed(0)}, ${world.y.toFixed(0)})`, 'success');
+            state.isAddingObstacle = false;
+            document.getElementById('addObstacleBtn').textContent = '➕ 添加障碍物';
+            document.getElementById('addObstacleBtn').classList.remove('active-mode');
+            document.getElementById('interactionHint').textContent = '点击 Gazebo 或 RViz 视图添加物体';
+            rvizCanvas.classList.remove('cursor-crosshair');
+            gazeboCanvas.classList.remove('cursor-crosshair');
+        }
+
+        if (state.isAddingBall) {
+            addBallAt(world.x, world.y);
+            state.isAddingBall = false;
+            document.getElementById('addBallBtn').textContent = '🎾 添加网球';
+            document.getElementById('addBallBtn').classList.remove('active-mode');
+            document.getElementById('interactionHint').textContent = '点击 Gazebo 或 RViz 视图添加物体';
+            rvizCanvas.classList.remove('cursor-crosshair');
+            gazeboCanvas.classList.remove('cursor-crosshair');
+        }
+    }
+
+    gazeboCanvas.addEventListener('click', (e) => {
+        if (state.isAddingObstacle || state.isAddingBall) {
+            handleCanvasClick(gazeboCanvas, e);
+        }
+    });
+
+    rvizCanvas.addEventListener('click', (e) => {
+        if (state.isAddingObstacle || state.isAddingBall) {
+            handleCanvasClick(rvizCanvas, e);
+        }
+    });
+
+    document.getElementById('addObstacleBtn').addEventListener('click', () => {
+        if (state.isAddingBall) {
+            state.isAddingBall = false;
+            document.getElementById('addBallBtn').textContent = '🎾 添加网球';
+            document.getElementById('addBallBtn').classList.remove('active-mode');
+        }
+        state.isAddingObstacle = !state.isAddingObstacle;
+        const btn = document.getElementById('addObstacleBtn');
+        const hint = document.getElementById('interactionHint');
+        if (state.isAddingObstacle) {
+            btn.textContent = '👆 点击视图放置障碍物';
+            btn.classList.add('active-mode');
+            hint.textContent = '点击 Gazebo 或 RViz 任意位置放置圆柱障碍物';
+            rvizCanvas.classList.add('cursor-crosshair');
+            gazeboCanvas.classList.add('cursor-crosshair');
+            addLog('Click on any view to place obstacle', 'warn');
+        } else {
+            btn.textContent = '➕ 添加障碍物';
+            btn.classList.remove('active-mode');
+            hint.textContent = '点击 Gazebo 或 RViz 视图添加物体';
+            rvizCanvas.classList.remove('cursor-crosshair');
+            gazeboCanvas.classList.remove('cursor-crosshair');
+        }
+    });
+
+    document.getElementById('addBallBtn').addEventListener('click', () => {
+        if (state.isAddingObstacle) {
+            state.isAddingObstacle = false;
+            document.getElementById('addObstacleBtn').textContent = '➕ 添加障碍物';
+            document.getElementById('addObstacleBtn').classList.remove('active-mode');
+        }
+        state.isAddingBall = !state.isAddingBall;
+        const btn = document.getElementById('addBallBtn');
+        const hint = document.getElementById('interactionHint');
+        if (state.isAddingBall) {
+            btn.textContent = '👆 点击视图放置网球';
+            btn.classList.add('active-mode');
+            hint.textContent = '点击 Gazebo 或 RViz 任意位置放置网球';
+            rvizCanvas.classList.add('cursor-crosshair');
+            gazeboCanvas.classList.add('cursor-crosshair');
+            addLog('Click on any view to place tennis ball', 'warn');
+        } else {
+            btn.textContent = '🎾 添加网球';
+            btn.classList.remove('active-mode');
+            hint.textContent = '点击 Gazebo 或 RViz 视图添加物体';
+            rvizCanvas.classList.remove('cursor-crosshair');
+            gazeboCanvas.classList.remove('cursor-crosshair');
+        }
+    });
+
+    document.getElementById('clearMapBtn').addEventListener('click', () => {
+        initEnvironment();
+        stopPatrol();
+        addLog('Map cleared and reset', 'warn');
+    });
+
+    document.getElementById('patrolBtn').addEventListener('click', () => {
+        startPatrol();
+    });
+
+    document.getElementById('stopPatrolBtn').addEventListener('click', () => {
+        stopPatrol();
+    });
+
+    // ==================== 主循环 ====================
+    let lastLogTime = 0;
+
+    function loop(timestamp) {
+        state.frameCount++;
+        updateRobot();
+        const ranges = performScan();
+        updateOccupancyGrid(ranges);
+        drawRViz();
+        drawGazebo();
+        updateStats();
+
+        if (timestamp - lastLogTime > 2000) {
+            const msgs = [
+                { text: `Scan processed: ${CONFIG.lidarResolution} rays`, level: 'info' },
+                { text: `Robot pose: [${state.robot.x.toFixed(1)}, ${state.robot.y.toFixed(1)}, ${(state.robot.theta*180/Math.PI).toFixed(1)}]`, level: 'info' },
+                { text: `Grid cells updated: ${state.grid.filter(p => p !== 0.5).length}`, level: 'success' },
+                { text: `Linear velocity: ${Math.hypot(state.robot.vx, state.robot.vy).toFixed(2)} m/s`, level: 'info' },
+                { text: 'Publishing /tf transform...', level: 'info' },
+                { text: 'Map server: receiving updates', level: 'success' }
+            ];
+            const msg = msgs[Math.floor(Math.random() * msgs.length)];
+            addLog(msg.text, msg.level);
+            lastLogTime = timestamp;
+        }
+
+        requestAnimationFrame(loop);
+    }
+
+    // ==================== 初始化 ====================
+    initEnvironment();
+    addLog('ROS Master initialized', 'success');
+    addLog('Gazebo simulator started', 'success');
+    addLog('RViz connected to /map topic', 'success');
+    addLog('LiDAR node: /scan topic active', 'info');
+    addLog('Robot model loaded: differential_drive', 'info');
+    addLog('Use WASD to move, Q/E to rotate', 'warn');
+    addLog('🎾 Perception-driven ball collection ready!', 'success');
+    addLog('Robot will wander randomly until a ball is detected by LiDAR', 'info');
+
+    requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
