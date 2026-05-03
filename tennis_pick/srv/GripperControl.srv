@@ -1,0 +1,5 @@
+string target   # "open", "close", "pause"
+float64 power
+---
+bool success
+string message
