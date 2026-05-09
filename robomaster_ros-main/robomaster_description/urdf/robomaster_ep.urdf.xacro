@@ -1,0 +1,34 @@
+<?xml version="1.0"?>
+<robot name="robomaster_ep" xmlns:xacro="http://playerstage.sourceforge.net/gazebo/xmlschema/#xacro">
+
+  <xacro:arg name="name" default=""/>
+  <xacro:property name="_name" value="$(arg name)"/>
+  <xacro:if value="${_name != ''}">
+    <xacro:property name="tf_prefix" value="${_name}/"/>
+  </xacro:if>
+  <xacro:if value="${_name == ''}">
+    <xacro:property name="tf_prefix" value=""/>
+  </xacro:if>
+  <xacro:arg name="camera_yaw" default="0.0"/>
+
+  <xacro:include filename="base.urdf.xacro"/>
+  <xacro:include filename="arm.urdf.xacro"/>
+  <xacro:include filename="camera.urdf.xacro"/>
+  <xacro:include filename="gripper.urdf.xacro"/>
+  <xacro:include filename="intelligent_controller.urdf.xacro"/>
+  <xacro:include filename="extension.urdf.xacro"/>
+  <xacro:include filename="tof.urdf.xacro"/>
+
+  <xacro:base tf_prefix="${tf_prefix}"/>
+  <xacro:extension tf_prefix="${tf_prefix}" use_rear_extension="true"/>
+  <xacro:intelligent_controller tf_prefix="${tf_prefix}" mount="extension"/>
+  <xacro:arm tf_prefix="${tf_prefix}"/>
+  <xacro:camera tf_prefix="${tf_prefix}" mount="arm" camera_yaw="$(arg camera_yaw)"/>
+  <xacro:gripper tf_prefix="${tf_prefix}"/>
+
+  <xacro:add_tof index="0" tf_prefix="${tf_prefix}"/>
+  <xacro:add_tof index="1" tf_prefix="${tf_prefix}"/>
+  <xacro:add_tof index="2" tf_prefix="${tf_prefix}"/>
+  <xacro:add_tof index="3" tf_prefix="${tf_prefix}"/>
+
+</robot>
