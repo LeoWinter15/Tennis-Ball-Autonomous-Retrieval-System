@@ -1,0 +1,17 @@
+<launch>
+
+  <arg name="display_battery" default="off" description="wheter and where to diplay the battery state; one of: off (do not display), right (display on the right gimbal led), left (display on the left gimbal led)"/>
+
+  <include file="$(find-pkg-share robomaster_ros)/launch/main.launch">
+    <arg name="model" value="s1"/>
+  </include>
+
+  <group>
+  <push-ros-namespace namespace="$(var name)"/>
+
+  <node name="display_battery" pkg="robomaster_ros" exec="display_battery" output="screen"
+     if="$(eval '\'$(var display_battery)\' != \'off\'')">
+    <param name='side' value="$(var display_battery)"/>
+  </node>
+  </group>
+</launch>

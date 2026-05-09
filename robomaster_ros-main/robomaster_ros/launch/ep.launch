@@ -1,0 +1,7 @@
+<launch>
+
+  <include file="$(find-pkg-share robomaster_ros)/launch/main.launch">
+    <arg name="model" value="ep"/>
+  </include>
+
+</launch>
