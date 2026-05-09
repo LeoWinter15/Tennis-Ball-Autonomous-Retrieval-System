@@ -1,0 +1,63 @@
+<?xml version="1.0"?>
+
+<robot xmlns:xacro="http://playerstage.sourceforge.net/gazebo/xmlschema/#xacro">
+
+  <xacro:macro name="camera" params="tf_prefix='' mount='' camera_yaw=0.0">
+
+    <link name="${tf_prefix}camera_link">
+      <inertial>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <mass value="0.001"/>
+        <inertia ixx="0.001" ixy="0" ixz="0" iyy="0.001" iyz="0" izz="0.001"/>
+      </inertial>
+      <visual name="camera">
+        <origin xyz="7.15e-05 0 -0.0004056" rpy="0 -1.7453293 0"/>
+        <geometry>
+          <mesh filename="package://robomaster_description/meshes/camera.dae" scale="1.0 1.0 1.0000001"/>
+        </geometry>
+        <material name="metal"/>
+      </visual>
+    </link>
+
+    <link name="${tf_prefix}camera_optical_link">
+      <inertial>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <mass value="0.001"/>
+        <inertia ixx="0.001" ixy="0" ixz="0" iyy="0.001" iyz="0" izz="0.001"/>
+      </inertial>
+    </link>
+
+
+    <xacro:if value="${mount == 'arm'}">
+      <joint name="${tf_prefix}camera_joint" type="fixed">
+        <origin xyz="0.0053865 -0.0195698 0.0473739" rpy="0 1.6898531 ${camera_yaw}"/>
+        <parent link="${tf_prefix}arm_2_link"/>
+        <child link="${tf_prefix}camera_link"/>
+      </joint>
+    </xacro:if>
+
+    <xacro:if value="${mount == 'gimbal'}">
+      <joint name="${tf_prefix}camera_joint" type="fixed">
+        <origin xyz="0.0728 0.0 0.0315" rpy="0 1.5708 0"/>
+        <parent link="${tf_prefix}blaster_link"/>
+        <child link="${tf_prefix}camera_link"/>
+      </joint>
+    </xacro:if>
+
+    <joint name="${tf_prefix}camera_optical_joint" type="fixed">
+      <!-- <origin xyz="0.002 0.00 0.004" rpy="0.0872663 0 ${-pi/2}"/> -->
+      <!-- <origin xyz="0.002 0.00 0.004" rpy="0.0072663 0 ${-pi/2}"/> -->
+      <origin xyz="0.002 0.00 0.004" rpy="0.041623 0 ${-pi/2}"/>
+      <parent link="${tf_prefix}camera_link"/>
+      <child link="${tf_prefix}camera_optical_link"/>
+    </joint>
+
+
+    <!-- <joint name="camera_optical_link" type="fixed">
+      <origin xyz="0 0 0" rpy="0 -0.0872663 0"/>
+      <parent link="camera_link"/>
+      <child link="camera_optical_link"/>
+    </joint> -->
+
+  </xacro:macro>
+</robot>
